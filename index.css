@@ -1,194 +1,80 @@
 :root {
   --senai-blue: #045cac;
-  --senai-dark-blue: #033a73;
-  --senai-light: #e9f2fa;
+  --senai-dark-blue: #023a70;
+  --senai-light: #f0f5fa;
   --primary-color: #045cac;
   --secondary-color: #03396c;
   --accent-color: #00a1e4;
-  --dark-bg: #111;
+  --dark-bg: #0f172a;
   --light-text: #f8f9fa;
-  --transition-speed: 0.5s;
+  --transition-speed: 0.35s;
 }
 
 body {
-  background-color: #f8f9fa;
+  font-family: "Inter", sans-serif;
+  background-color: #f1f5f9;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+}
+
+.navbar {
+  background: linear-gradient(
+    135deg,
+    var(--senai-blue) 0%,
+    var(--senai-dark-blue) 100%
+  );
+  border-bottom: 3px solid var(--accent-color);
 }
 
 .navbar-brand img {
-  height: 50px;
-  transition: transform 0.3s;
+  height: 42px;
+  transition: transform var(--transition-speed) ease;
 }
 
 .navbar-brand img:hover {
-  transform: scale(1.05);
+  transform: scale(1.03);
 }
 
 #clock {
-  font-size: 1.5rem;
-  font-weight: bold;
-  animation: rgbCycleSmooth 10s infinite;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 6px 18px;
+  border-radius: 50px;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.1);
 }
 
 main {
   flex: 1;
-  display: flex;
-  align-items: center;
-  padding: 2rem 0;
+}
+
+.brand-decorator {
+  width: 70px;
+  height: 5px;
+  background-color: var(--accent-color);
+  border-radius: 10px;
 }
 
 .access-card {
-  background: white;
-  border-radius: 15px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-  padding: 2.5rem;
-  max-width: 800px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 24px;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.18);
+  padding: 4rem 2.5rem;
+  max-width: 740px;
   margin: 0 auto;
-}
-
-.btn-access {
-  padding: 1rem 2rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-  border-radius: 50px;
-  margin: 0.5rem;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 250px;
-}
-
-.btn-access i {
-  margin-right: 10px;
-  font-size: 1.2rem;
-}
-
-.btn-user {
-  background-color: var(--senai-blue);
-  border-color: var(--senai-blue);
-}
-
-.btn-user:hover {
-  background-color: var(--senai-dark-blue);
-  border-color: var(--senai-dark-blue);
-  transform: translateY(-3px);
-  box-shadow: 0 5px 15px rgba(4, 92, 172, 0.4);
-}
-
-.btn-admin {
-  background-color: #28a745;
-  border-color: #28a745;
-}
-
-.btn-admin:hover {
-  background-color: #218838;
-  border-color: #218838;
-  transform: translateY(-3px);
-  box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
-}
-
-/* Footer */
-.user-footer {
-  background: linear-gradient(
-    135deg,
-    var(--secondary-color),
-    var(--primary-color)
-  );
-  padding: 12px 0;
-  font-size: 0.9rem;
-  position: relative;
-}
-
-.user-footer p {
-  margin: 0;
-  opacity: 0.9;
-  color: #ffffff;
-}
-
-/* Efeitos de transição */
-.fade-in {
-  animation: fadeIn var(--transition-speed) forwards;
-}
-
-.fade-out {
-  animation: fadeOut var(--transition-speed) forwards;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes fadeOut {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-
-/* Responsividade */
-@media (max-width: 992px) {
-  .header-title {
-    font-size: 1.3rem;
-  }
-
-  .clock-display {
-    font-size: 1.4rem;
-    padding: 3px 10px;
-  }
-}
-
-@media (max-width: 768px) {
-  .user-header .row > div {
-    padding: 5px;
-  }
-
-  .logo {
-    height: 40px;
-  }
-
-  .header-title {
-    font-size: 1.1rem;
-  }
-
-  .clock-display {
-    font-size: 1.2rem;
-  }
-
-  .user-footer {
-    font-size: 0.8rem;
-  }
-}
-
-@media (max-width: 576px) {
-  .header-title {
-    display: none;
-  }
-
-  .clock-display {
-    font-size: 1rem;
-  }
-
-  .user-footer .col-md-6 {
-    text-align: center !important;
-    margin-bottom: 5px;
-  }
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
 }
 
 .welcome-text {
   color: var(--senai-dark-blue);
-  margin-bottom: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
 }
 
 .options-container {
@@ -196,4 +82,103 @@ main {
   flex-wrap: wrap;
   justify-content: center;
   gap: 1.5rem;
+}
+
+.btn-access {
+  padding: 1.1rem 2.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  border-radius: 14px;
+  transition: all var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 260px;
+  border: none;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+}
+
+.btn-user {
+  background: linear-gradient(
+    135deg,
+    var(--senai-blue) 0%,
+    var(--senai-dark-blue) 100%
+  );
+}
+
+.btn-user:hover {
+  background: linear-gradient(135deg, #056fd0 0%, #034b91 100%);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(4, 92, 172, 0.35);
+}
+
+.btn-admin {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.btn-admin:hover {
+  background: linear-gradient(135deg, #34d399 0%, #059669 100%);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(16, 185, 129, 0.35);
+}
+
+/* Modal Estilização */
+.modal-content {
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.modal-header {
+  background: linear-gradient(
+    135deg,
+    var(--senai-blue) 0%,
+    var(--senai-dark-blue) 100%
+  );
+  border-bottom: 2px solid var(--accent-color);
+}
+
+.form-control:focus {
+  border-color: var(--senai-blue);
+  box-shadow: 0 0 0 0.25rem rgba(4, 92, 172, 0.25);
+}
+
+.btn-submit-password {
+  background: linear-gradient(
+    135deg,
+    var(--senai-blue) 0%,
+    var(--senai-dark-blue) 100%
+  );
+  border: none;
+  border-radius: 10px;
+  transition: background var(--transition-speed);
+}
+
+.btn-submit-password:hover {
+  background: linear-gradient(135deg, #056fd0 0%, #034b91 100%);
+}
+
+/* Footer */
+.user-footer {
+  background: linear-gradient(135deg, var(--senai-dark-blue) 0%, #022547 100%);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.user-footer p {
+  font-size: 0.85rem;
+}
+
+/* Animações */
+.fade-in {
+  animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

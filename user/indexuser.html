@@ -4,58 +4,119 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel de Visualização SENAI</title>
+    <title>Painel de Visualização - SENAI</title>
     <!-- Bootstrap 5.3.2 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome para ícones -->
+    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="./css/indexuser.css">
     <link rel="icon" href="../admin/images/favicon.ico" type="image/x-icon">
 </head>
 
 <body class="user-body">
-    <!-- Header -->
-    <header class="user-header">
+    <!-- Barra de Progresso Estilo Stories (Topo da Tela) -->
+    <div class="slide-progress-container">
+        <div id="slide-progress-bar" class="slide-progress-bar"></div>
+    </div>
+
+    <!-- Overlay de Inicialização para TV (Design Premium Glassmorphism) -->
+    <div id="tv-activation-overlay" class="activation-overlay">
+        <div class="activation-card text-center">
+            <div class="activation-icon mb-4">
+                <i class="fas fa-play fa-2x text-white"></i>
+            </div>
+            <h3 class="mb-3 text-white fw-extrabold text-uppercase tracking-wider">Modo Transmissão</h3>
+            <p class="text-white-50 mb-4 small px-3">Toque na tela ou pressione qualquer tecla para iniciar a exibição
+                inteligente em Tela Cheia e ativar o som.</p>
+            <button class="btn btn-activation px-5 py-3 rounded-pill fw-bold text-white text-uppercase">
+                <i class="fas fa-expand me-2 animate-pulse"></i> Iniciar Painel
+            </button>
+        </div>
+    </div>
+
+    <!-- Header Inteligente (Alinhado em Linha com Letras Grandes e Clima Customizado) -->
+    <header class="user-header py-3 px-4">
         <div class="container-fluid">
             <div class="row align-items-center">
-                <div class="col-md-4 text-start">
+                <!-- Coluna 1: Logo SENAI -->
+                <div class="col-3 text-start d-flex align-items-center">
                     <img src="../admin/images/senai-logo-0.png" alt="Logo SENAI" class="logo img-fluid">
                 </div>
-                <div class="col-md-4 text-center">
-                    <h1 class="header-title mb-0">Painel de Visualização</h1>
+                <!-- Coluna 2: Título Centralizado -->
+                <div class="col-4 text-center">
+                    <h1 class="header-title mb-0 text-uppercase">Painel de Comunicação</h1>
                 </div>
-                <div class="col-md-4 text-end">
-                    <div id="clock" class="clock-display"></div>
+                <!-- Coluna 3: Clima Customizado (Texto + Emoji 2x) + Relógio Digital -->
+                <div class="col-5 d-flex align-items-center justify-content-end gap-3">
+                    <!-- Widget de Clima Nativo em Texto e Emoji (Bypass de Iframe) -->
+                    <div id="weather-display" class="weather-display-container">
+                        <span class="weather-city">UBERABA</span>
+                        <span class="weather-temp">--°C</span>
+                        <span class="weather-emoji">🌡️</span>
+                        <span class="weather-desc">Carregando...</span>
+                    </div>
+                    <!-- Relógio Digital Grande -->
+                    <div id="clock" class="clock-display font-monospace">00:00:00</div>
                 </div>
             </div>
         </div>
     </header>
 
-    <!-- Área de exibição principal -->
+    <!-- Área de exibição principal (Slideshow) -->
     <main id="display-area">
-        <!-- Conteúdo será inserido dinamicamente aqui -->
+        <!-- Conteúdo dinâmico de mídias e notícias inserido aqui -->
     </main>
 
-    <!-- Footer -->
+    <!-- Footer estilo Broadcaster (Letreiro Digital Atualizado com as Redes Sociais - Font de 3rem!) -->
     <footer class="user-footer">
-        <div class="container-fluid">
-            <div class="row align-items-center">
-                <div class="col-md-6 text-start">
-                    <p class="mb-0"><i class="fas fa-copyright me-1"></i> 2024 SENAI - Sistema de Vagas</p>
+        <div class="container-fluid-fluid d-flex align-items-center w-100">
+            <!-- Badge de Alerta Estático -->
+            <div class="ticker-prefix px-4">
+                <span class="pulse-dot me-2"></span>
+                <span class="ticker-prefix-text">INFORMA</span>
+            </div>
+            <!-- Canal de Transmissão Deslizante com as Redes Oficiais -->
+            <div class="ticker-wrap flex-grow-1">
+                <div class="ticker">
+                    <div class="ticker-item">
+                        <i class="fab fa-instagram text-danger me-2"></i>
+                        Siga o <strong>SENAI Uberaba</strong> no Instagram para novidades, vagas e cursos presenciais:
+                        <strong>@senaiuberaba</strong>
+                    </div>
+                    <div class="ticker-item">
+                        <i class="fab fa-instagram text-danger me-2"></i>
+                        Acompanhe o desenvolvimento industrial regional: <strong>@fiemgregionalvaledoriogrande</strong>
+                    </div>
+                    <div class="ticker-item">
+                        <i class="fab fa-instagram text-danger me-2"></i>
+                        Fique por dentro das conexões e novidades da indústria de Minas Gerais:
+                        <strong>@fiemgoficial</strong>
+                    </div>
+                    <div class="ticker-item">
+                        <i class="fab fa-instagram text-danger me-2"></i>
+                        Veja as principais inovações tecnológicas e cursos nacionais: <strong>@senai_nacional</strong>
+                    </div>
+                    <div class="ticker-item">
+                        <i class="fas fa-hashtag text-info me-2"></i>
+                        Marque nossas páginas oficiais em suas publicações para compartilhar seu aprendizado na
+                        indústria!
+                    </div>
                 </div>
-                <div class="col-md-6 text-end">
-                    <p class="mb-0">Desenvolvido por <strong>Lenon Yuri</strong></p>
-                </div>
+            </div>
+            <!-- Créditos do Desenvolvedor -->
+            <div class="ticker-credits px-4 d-none d-md-block">
+                <span class="small text-white-50">Desenvolvido por <strong class="text-white">Lenon Yuri</strong></span>
             </div>
         </div>
     </footer>
 
     <!-- Bootstrap Bundle com Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- Scripts personalizados -->
     <script src="../admin/js/indexadmin.js"></script>
+    <script src="./js/drops.js"></script>
     <script src="./js/indexuser.js"></script>
 </body>
 

@@ -4,59 +4,100 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel de Acesso</title>
-    <!-- Incluindo Bootstrap -->
+    <title>Painel de Acesso - SENAI</title>
+    <!-- Incluindo Bootstrap 5.3 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome para ícones -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./index.css">
     <link rel="icon" href="./images/favicon.ico" type="image/x-icon">
 </head>
 
 <body>
     <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-dark" style="background-color: var(--senai-blue);">
+    <nav class="navbar navbar-expand-lg navbar-dark shadow-sm">
         <div class="container">
-            <a class="navbar-brand" href="#">
-                <img src="./admin/images/senai-logo-0.png" alt="Logo SENAI" class="logo">
+            <a class="navbar-brand d-flex align-items-center" href="#">
+                <img src="./admin/images/senai-logo-0.png" alt="Logo SENAI" class="logo py-1">
             </a>
-            <h1 class="navbar-text text-white mb-0 d-none d-lg-block">Painel de Acesso</h1>
+            <h1 class="navbar-title text-white mb-0 d-none d-md-block fs-4 fw-semibold">Sistema de Gestão de Mídias</h1>
             <div class="ms-auto">
-                <span id="clock" class="text-white"></span>
+                <span id="clock" class="text-white clock-glow font-monospace"></span>
             </div>
         </div>
     </nav>
 
     <!-- Conteúdo Principal -->
-    <main class="py-5">
+    <main class="d-flex align-items-center py-5">
         <div class="container">
-            <div class="access-card text-center">
-                <h2 class="welcome-text mb-4">Bem-vindo ao Sistema SENAI</h2>
-                <p class="lead text-muted mb-5">Selecione o tipo de acesso desejado:</p>
+            <div class="access-card text-center fade-in">
+                <div class="brand-decorator mb-4 mx-auto"></div>
+                <h2 class="welcome-text mb-2">Bem-vindo ao Sistema SENAI</h2>
+                <p class="lead text-muted mb-5">Selecione o painel que deseja acessar para continuar</p>
 
                 <div class="options-container">
                     <a href="./user/indexuser.html" class="btn btn-access btn-user text-white">
-                        <i class="fas fa-user"></i> Acesso de Usuário
+                        <i class="fas fa-desktop me-2"></i> Painel de Exibição
                     </a>
-                    <a href="./admin/indexadminsenai.html" class="btn btn-access btn-admin text-white">
-                        <i class="fas fa-lock"></i> Acesso Administrativo
-                    </a>
+                    <!-- Modificado para abrir o modal de autenticação -->
+                    <button type="button" class="btn btn-access btn-admin text-white" data-bs-toggle="modal"
+                        data-bs-target="#adminAuthModal">
+                        <i class="fas fa-sliders-h me-2"></i> Área Administrativa
+                    </button>
                 </div>
             </div>
         </div>
     </main>
 
-    <!-- Rodapé -->
-    <footer class="user-footer">
-        <div class="container-fluid">
-            <div class="row align-items-center">
-                <div class="col-md-6 text-start">
-                    <p class="mb-0"><i class="fas fa-copyright me-1"></i> 2024 SENAI - Sistema de Vagas</p>
+    <!-- Modal de Autenticação -->
+    <div class="modal fade" id="adminAuthModal" tabindex="-1" aria-labelledby="adminAuthModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header text-white">
+                    <h5 class="modal-title id=" adminAuthModalLabel" class="fw-semibold">
+                        <i class="fas fa-lock me-2 text-warning"></i>Acesso Restrito
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Fechar"></button>
                 </div>
-                <div class="col-md-6 text-end">
-                    <p class="mb-0">Desenvolvido por <strong>Lenon Yuri</strong></p>
+                <form id="adminLoginForm">
+                    <div class="modal-body p-4">
+                        <div class="mb-3">
+                            <label for="adminPassword" class="form-label text-muted fw-semibold">Senha de Acesso</label>
+                            <input type="password" class="form-control form-control-lg text-center" id="adminPassword"
+                                placeholder="Digite a senha administrativa" required>
+                            <div id="passwordError" class="invalid-feedback text-start">
+                                Senha incorreta. Tente novamente.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-0 px-4 pb-4 pt-0">
+                        <button type="button" class="btn btn-outline-secondary px-4 py-2"
+                            data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-submit-password text-white px-4 py-2">Confirmar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rodapé -->
+    <footer class="user-footer py-3 mt-auto">
+        <div class="container">
+            <div class="row align-items-center text-center text-md-start">
+                <div class="col-md-6">
+                    <p class="mb-0 text-white-50"><i class="fas fa-copyright me-1"></i> <span id="current-year"></span>
+                        SENAI - Sistema de Vagas</p>
+                </div>
+                <div class="col-md-6 text-md-end mt-2 mt-md-0">
+                    <p class="mb-0 text-white-50">Desenvolvido por <strong class="text-white">Lenon Yuri</strong></p>
                 </div>
             </div>
         </div>
     </footer>
+
     <!-- Incluindo Bootstrap JS e script do relógio -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script src="./index.js"></script>

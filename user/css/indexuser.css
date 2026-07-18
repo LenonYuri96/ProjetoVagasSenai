@@ -1,99 +1,146 @@
 :root {
   --primary-color: #045cac;
-  --secondary-color: #03396c;
+  --secondary-color: #0c1220;
   --accent-color: #00a1e4;
-  --dark-bg: #111;
+  --neon-green: #00ff87;
+  --dark-bg: #030303; /* Preto absoluto para contraste infinito nas telas de LED/TV */
+  --card-bg: #0b0f19;
   --light-text: #f8f9fa;
-  --transition-speed: 0.5s;
+  --transition-speed: 0.6s;
+  --font-display: "Inter", sans-serif;
 }
 
-/* Estilos gerais */
+/* Forçamento de escala total sem barras de rolagem */
+html,
 body.user-body {
-  font-family: "Roboto", sans-serif;
+  font-family: var(--font-display);
   background-color: var(--dark-bg);
   color: var(--light-text);
-  margin: 0;
-  padding: 0;
-  height: 100vh;
-  overflow: hidden;
+  margin: 0 !important;
+  padding: 0 !important;
+  height: 100vh !important;
+  width: 100vw !important;
+  overflow: hidden !important;
   display: flex;
   flex-direction: column;
 }
 
-/* Header */
-.user-header {
+/* Glassmorphic Overlay para TV */
+.activation-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(3, 3, 3, 0.96);
+  backdrop-filter: blur(20px);
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    opacity 0.5s ease,
+    visibility 0.5s ease;
+}
+
+.activation-overlay.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.activation-card {
+  max-width: 440px;
+  padding: 4rem 3rem;
+  border-radius: 28px;
   background: linear-gradient(
     135deg,
-    var(--primary-color),
-    var(--secondary-color)
+    rgba(255, 255, 255, 0.03) 0%,
+    rgba(255, 255, 255, 0.01) 100%
   );
-  padding: 15px 0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  z-index: 1000;
-  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.8);
+}
+
+.activation-icon {
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(
+    135deg,
+    var(--accent-color) 0%,
+    var(--primary-color) 100%
+  );
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  box-shadow: 0 0 30px rgba(0, 161, 228, 0.3);
+  animation: pulseGlow 2.5s infinite alternate;
+}
+
+@keyframes pulseGlow {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 20px rgba(0, 161, 228, 0.3);
+  }
+  100% {
+    transform: scale(1.08);
+    box-shadow: 0 0 40px rgba(0, 255, 135, 0.6);
+  }
+}
+
+.btn-activation {
+  background: linear-gradient(
+    135deg,
+    var(--neon-green) 0%,
+    var(--accent-color) 100%
+  );
+  border: none;
+  font-weight: 800;
+  letter-spacing: 1px;
+  box-shadow: 0 10px 25px rgba(0, 255, 135, 0.2);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.btn-activation:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 30px rgba(0, 255, 135, 0.4);
+}
+
+/* Header Inteligente e Fluido */
+.user-header {
+  background-color: var(--dark-bg);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
+  z-index: 10;
 }
 
 .logo {
-  height: 50px;
+  height: 54px; /* Altura generosa de 54px */
   width: auto;
-  transition: all var(--transition-speed) ease;
+  filter: brightness(1.05);
 }
 
 .header-title {
-  font-weight: 600;
-  font-size: 1.5rem;
-  letter-spacing: 1px;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  color: #ffffff;
+  font-size: 1.6rem !important; /* Leitura ideal para telas de TV */
 }
 
 .clock-display {
-  font-size: 1.8rem;
-  font-weight: 700;
-  font-family: "Courier New", monospace;
-  background: rgba(0, 0, 0, 0.2);
-  padding: 5px 15px;
-  border-radius: 30px;
-  display: inline-block;
-  animation: rgbPulse 10s infinite alternate;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+  font-size: 2rem; /* Relógio digital grande */
+  font-weight: 800;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 10px 22px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  white-space: nowrap;
 }
 
-@keyframes rgbPulse {
-  0% {
-    color: #ff0000;
-    text-shadow: 0 0 10px #ff0000;
-  }
-  15% {
-    color: #ff7f00;
-    text-shadow: 0 0 10px #ff7f00;
-  }
-  30% {
-    color: #ffff00;
-    text-shadow: 0 0 10px #ffff00;
-  }
-  45% {
-    color: #00ff00;
-    text-shadow: 0 0 10px #00ff00;
-  }
-  60% {
-    color: #0000ff;
-    text-shadow: 0 0 10px #0000ff;
-  }
-  75% {
-    color: #4b0082;
-    text-shadow: 0 0 10px #4b0082;
-  }
-  90% {
-    color: #8b00ff;
-    text-shadow: 0 0 10px #8b00ff;
-  }
-  100% {
-    color: #ff0000;
-    text-shadow: 0 0 10px #ff0000;
-  }
-}
-
-/* Área de exibição principal */
+/* Área de Exibição Principal (Slideshow) */
 #display-area {
   flex: 1;
   display: flex;
@@ -101,10 +148,9 @@ body.user-body {
   justify-content: center;
   overflow: hidden;
   position: relative;
-  background-color: #000;
+  background-color: var(--dark-bg);
 }
 
-/* Estilos para mídias */
 .media-container {
   width: 100%;
   height: 100%;
@@ -114,173 +160,403 @@ body.user-body {
   position: absolute;
   top: 0;
   left: 0;
-}
-
-.media-image {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
   opacity: 0;
-  transition: opacity var(--transition-speed) ease;
+  filter: blur(10px);
+  transform: scale(1.02);
+  pointer-events: none;
+  z-index: 1;
+  will-change: transform, opacity, filter;
+  transition:
+    opacity var(--transition-speed) cubic-bezier(0.16, 1, 0.3, 1),
+    filter var(--transition-speed) cubic-bezier(0.16, 1, 0.3, 1),
+    transform var(--transition-speed) cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.media-image.active {
+.media-container.active {
   opacity: 1;
-}
-
-.media-video {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  opacity: 0;
-  transition: opacity var(--transition-speed) ease;
-}
-
-.media-video.active {
-  opacity: 1;
-}
-
-/* Footer */
-.user-footer {
-  background: linear-gradient(
-    135deg,
-    var(--secondary-color),
-    var(--primary-color)
-  );
-  padding: 12px 0;
-  font-size: 0.9rem;
-  z-index: 1000;
-  position: relative;
-  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.user-footer p {
-  margin: 0;
-  opacity: 0.9;
-}
-
-/* Efeitos de transição */
-.fade-in {
-  animation: fadeIn var(--transition-speed) forwards;
-}
-
-.fade-out {
-  animation: fadeOut var(--transition-speed) forwards;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes fadeOut {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-
-/* Responsividade */
-@media (max-width: 992px) {
-  .header-title {
-    font-size: 1.3rem;
-  }
-
-  .clock-display {
-    font-size: 1.4rem;
-    padding: 3px 10px;
-  }
-}
-
-@media (max-width: 768px) {
-  .user-header .row > div {
-    padding: 5px;
-  }
-
-  .logo {
-    height: 40px;
-  }
-
-  .header-title {
-    font-size: 1.1rem;
-  }
-
-  .clock-display {
-    font-size: 1.2rem;
-  }
-
-  .user-footer {
-    font-size: 0.8rem;
-  }
-}
-
-@media (max-width: 576px) {
-  .header-title {
-    display: none;
-  }
-
-  .clock-display {
-    font-size: 1rem;
-  }
-
-  .user-footer .col-md-6 {
-    text-align: center !important;
-    margin-bottom: 5px;
-  }
-}
-
-.media-container {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  filter: blur(0px);
+  transform: scale(1);
+  pointer-events: auto;
+  z-index: 2;
 }
 
 .media-content {
   max-width: 100%;
   max-height: 100%;
-  opacity: 0;
+  object-fit: contain;
 }
 
-.media-content.active {
-  opacity: 1;
+/* ==========================================================================
+   ESTILIZAÇÃO SMARTFIT - DROPS CARD (DIAGRAMAÇÃO ASYMMETRIC)
+   ========================================================================== */
+.drops-card {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr; /* Favorece a mídia visual na esquerda */
+  background-color: var(--dark-bg);
+  overflow: hidden;
+  position: relative;
 }
 
-.unmute-btn {
+/* Painel Esquerdo: Bloco de Mídia */
+.drops-image-pane {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #000;
+}
+
+.drops-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1);
+}
+
+/* Gradiente Escuro Suave para Emoldurar as Fotos e Vídeos */
+.drops-image-overlay {
   position: absolute;
-  bottom: 20px;
-  right: 20px;
-  padding: 8px 16px;
-  background-color: rgba(0, 0, 0, 0.7);
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    rgba(3, 3, 3, 0) 65%,
+    rgba(3, 3, 3, 1) 100%
+  );
+  z-index: 3;
+}
+
+/* Fallback de Imagem */
+.drops-fallback-pane {
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at 30% 30%, #0c1624 0%, #030303 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.drops-fallback-icon {
+  font-size: 10rem;
+  color: rgba(255, 255, 255, 0.02);
+  transform: rotate(-10deg);
+}
+
+/* Painel Direito: Conteúdo de Texto Ampliado (Letras Grandes e Altamente Visíveis) */
+.drops-info-pane {
+  padding: 4.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background-color: var(--dark-bg);
+  z-index: 5;
+  border-left: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.drops-badge-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 2rem;
+  align-items: center;
+}
+
+.drops-main-tag {
+  background: linear-gradient(
+    135deg,
+    var(--primary-color) 0%,
+    var(--accent-color) 100%
+  );
   color: white;
-  border: none;
+  padding: 6px 14px;
+  font-weight: 900;
+  font-size: 0.75rem;
   border-radius: 4px;
-  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  display: flex;
+  align-items: center;
+}
+
+.drops-category-tag {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.8);
+  padding: 6px 14px;
+  font-weight: 700;
+  font-size: 0.75rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.drops-headline {
+  font-size: 2.6rem; /* Aumentado para 2.6rem para ficar gigante nas TVs */
+  font-weight: 900;
+  line-height: 1.25;
+  color: #ffffff;
+  margin-bottom: 1.8rem;
+  letter-spacing: -1px;
+}
+
+.drops-summary {
+  font-size: 1.4rem; /* Aumentado para 1.4rem para excelente visibilidade */
+  color: #e2e8f0; /* Cinza claro de alto brilho e excelente contraste */
+  line-height: 1.8; /* Espaçamento de linha super confortável */
+  margin-bottom: 2.5rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.drops-summary-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 2rem;
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.drops-source-badge {
+  background-color: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ==========================================================================
+   LETREIRO DIGITAL ESTILO BROADCASTER (TICKER TAPE GIGANTE DE 3REM)
+   ========================================================================== */
+.user-footer {
+  background: #000000;
+  border-top: 2px solid rgba(255, 255, 255, 0.05);
+  height: 90px; /* Aumentado para 90px para conter o texto gigante sem cortes */
+  display: flex;
+  align-items: center;
+}
+
+/* Badge Estático de Alerta */
+.ticker-prefix {
+  background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
+  color: #ffffff;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  font-size: 1.1rem; /* Aumentado para equilibrar o visual com a fonte de 3rem */
+  height: 100%;
+  display: flex;
+  align-items: center;
   z-index: 100;
+  box-shadow: 10px 0 30px rgba(0, 0, 0, 0.8);
+}
+
+.pulse-dot {
+  width: 10px;
+  height: 8px;
+  background-color: #ffffff;
+  border-radius: 50%;
+  display: inline-block;
+  animation: alarmPulse 1.5s infinite alternate;
+}
+
+@keyframes alarmPulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+}
+
+.ticker-wrap {
+  width: 100%;
+  overflow: hidden;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.ticker {
+  display: inline-block;
+  white-space: nowrap;
+  padding-left: 100%;
+  animation: marquee 52s linear infinite; /* Ajustada velocidade para rolagem confortável */
+  will-change: transform;
+}
+
+/* CORREÇÃO DO LETREIRO GIGANTE DE 3REM */
+.ticker-item {
+  display: inline-block;
+  padding: 0 4.5rem;
+  font-size: 3rem !important; /* EXATAMENTE 3REM GIGANTE */
+  color: rgba(255, 255, 255, 0.9) !important; /* Corrigido erro de RGB */
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  line-height: 90px; /* Alinhamento perfeitamente centralizado */
+}
+
+@keyframes marquee {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-100%, 0, 0);
+  }
+}
+
+.ticker-credits {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  background: #000000;
+  z-index: 100;
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.8);
+}
+
+/* ==========================================================================
+   PERSONALIZAÇÕES ESPECÍFICAS DE CANAIS (INSTAGRAM PREMIUM)
+   ========================================================================== */
+.drops-instagram-badge {
+  background: linear-gradient(
+    45deg,
+    #f09433 0%,
+    #e6683c 25%,
+    #dc2743 50%,
+    #cc2366 75%,
+    #bc1888 100%
+  ) !important;
+  color: white !important;
+  box-shadow: 0 4px 15px rgba(220, 39, 67, 0.3);
+}
+
+.drops-card.instagram-style {
+  background: radial-gradient(
+    circle at 100% 0%,
+    rgba(220, 39, 67, 0.06) 0%,
+    var(--dark-bg) 65%
+  );
+}
+
+.drops-card.instagram-style .drops-info-pane {
+  background: transparent;
+}
+
+/* Barra de Progresso Superior Laser */
+.slide-progress-container {
+  width: 100%;
+  height: 4px;
+  background-color: rgba(255, 255, 255, 0.05);
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 100000;
+}
+
+.slide-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(
+    90deg,
+    var(--accent-color) 0%,
+    var(--neon-green) 50%,
+    var(--primary-color) 100%
+  );
+  box-shadow: 0 0 10px var(--neon-green);
+  transition: width 0.1s linear;
+}
+
+/* ==========================================================================
+   NOVO CLIMA: TEXTO INTEGRADO + EMOJI MINIMIZADO (Sem Iframe)
+   ========================================================================== */
+.weather-display-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  padding-right: 20px;
+  height: 52px;
+  white-space: nowrap;
+}
+
+.weather-city {
+  font-size: 1.15rem;
+  font-weight: 900;
+  color: var(--accent-color);
+  letter-spacing: 1px;
+}
+
+.weather-temp {
+  font-size: 2rem; /* Temperatura grande e legível */
+  font-weight: 800;
+  color: #ffffff;
+}
+
+/* Controle preciso do ícone (emoji): configurado exatamente em 2x o tamanho das letras */
+.weather-emoji {
+  font-size: 2.1rem; /* Exatamente o dobro do tamanho padrão das letras para TV */
+  line-height: 1;
+}
+
+.weather-desc {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Botão Flutuante de Áudio */
+.unmute-btn {
+  background: rgba(11, 15, 25, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.5px;
+  border-radius: 8px;
+  padding: 12px 24px;
+  backdrop-filter: blur(10px);
+  color: white;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease;
 }
 
 .unmute-btn:hover {
-  background-color: rgba(0, 0, 0, 0.9);
+  transform: scale(1.03);
+  background: rgba(11, 15, 25, 0.95);
 }
 
-.error-notification {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 10px 20px;
-  background-color: #ff3333;
-  color: white;
-  border-radius: 5px;
-  z-index: 1000;
+/* Responsividade Adaptativa (Tablets e Telas Menores) */
+@media (max-width: 1024px) {
+  .drops-card {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+  .drops-image-overlay {
+    background: linear-gradient(
+      0deg,
+      rgba(3, 3, 3, 1) 15%,
+      rgba(3, 3, 3, 0) 100%
+    );
+  }
+  .drops-info-pane {
+    padding: 2.5rem;
+    border-left: none;
+  }
+  .drops-headline {
+    font-size: 1.7rem;
+  }
 }
