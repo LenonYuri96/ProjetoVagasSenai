@@ -1,6 +1,5 @@
 /**
  * MediaManager - Controlador de Campanhas, Uploads e Drops da Indústria (Painel Administrativo)
- * Centraliza validações de arquivos pesados, progresso de upload e requisições HTTP assíncronas.
  */
 class MediaManager {
   constructor() {
@@ -19,6 +18,14 @@ class MediaManager {
     this.initElements();
     this.setupEventListeners();
     this.updateUploadedList();
+  }
+
+  // Método auxiliar para resolver URLs dinamicamente
+  resolveUrl(path) {
+    if (typeof window.getLocalUrl === "function") {
+      return window.getLocalUrl(path);
+    }
+    return `../${path}`;
   }
 
   initElements() {
@@ -48,7 +55,7 @@ class MediaManager {
     const { dropZone, fileInput, uploadButton, refreshBtn, searchInput } =
       this.elements;
 
-    if (dropZone) {
+    if (dropZone && fileInput) {
       dropZone.addEventListener("click", () => fileInput.click());
       dropZone.addEventListener("dragover", (e) => this.handleDragOver(e));
       dropZone.addEventListener("dragleave", () => this.handleDragLeave());
@@ -66,20 +73,38 @@ class MediaManager {
   }
 
   /**
-   * Consulta o back-end para carregar as propagandas catalogadas e mescla com notícias RSS
+   * Consulta o back-end para carregar as mídias e mescla com notícias RSS
    */
   async updateUploadedList() {
     try {
-      // 1. Puxa mídias enviadas localmente
+      // 1. Puxa mídias locais
       const response = await fetch("./php/list_uploads.php", {
         cache: "no-store",
       });
-      if (!response.ok) throw new Error("Falha ao recuperar a listagem.");
-      this.uploadedItems = await response.json();
+
+      const responseText = await response.text();
+
+      // Diagnóstico: caso a resposta não seja JSON válido
+      try {
+        this.uploadedItems = JSON.parse(responseText);
+      } catch (parseErr) {
+        console.error(
+          "Resposta bruta recebida do list_uploads.php (Erro PHP):",
+          responseText,
+        );
+        throw new Error(
+          "O servidor retornou uma resposta inválida (não-JSON). Verifique o console.",
+        );
+      }
+
+      if (!Array.isArray(this.uploadedItems)) {
+        this.uploadedItems = this.uploadedItems.data || [];
+      }
+
       this.renderUploadedItems();
       this.updateStats();
 
-      // 2. Carrega as notícias em tempo real que estão ativas na TV (G1 e Jornal da Manhã)
+      // 2. Carrega as notícias em tempo real (DropsEngine)
       let activeNewsDrops = [];
       if (window.DropsEngineInstance) {
         try {
@@ -93,10 +118,10 @@ class MediaManager {
         }
       }
 
-      // 3. Renderiza a grade visualizadora de Drops ativos abaixo da de uploads
+      // 3. Renderiza a grade de Drops ativos
       this.renderActiveDropsGrid(activeNewsDrops);
 
-      // 4. Constrói a fila mesclada de transmissão exata (2 locais + 1 drop) para rodar no preview
+      // 4. Constrói a fila mesclada de exibição (2 mídias locais + 1 Drop)
       const combinedQueue = [];
       let localIdx = 0;
       let newsIdx = 0;
@@ -131,14 +156,14 @@ class MediaManager {
     } catch (error) {
       console.error("Erro no carregamento de uploads:", error);
       this.showFeedback(
-        "Não foi possível carregar a listagem de arquivos.",
+        "Não foi possível carregar a listagem de arquivos. Veja o console para detalhes.",
         "danger",
       );
     }
   }
 
   /**
-   * Renderiza a listagem de notícias reais monitoradas (Drops da Indústria) abaixo da listagem de uploads
+   * Renderiza a listagem de notícias reais monitoradas (Drops)
    */
   renderActiveDropsGrid(newsDrops) {
     let dropsCard = document.getElementById("admin-drops-card");
@@ -147,8 +172,9 @@ class MediaManager {
       dropsCard.id = "admin-drops-card";
       dropsCard.className = "card border-0 shadow-sm mt-4";
 
-      // Insere o card de Drops logo após o card padrão de "Itens Carregados"
-      const uploadedCard = this.elements.uploadedList.closest(".card");
+      const uploadedCard = this.elements.uploadedList
+        ? this.elements.uploadedList.closest(".card")
+        : null;
       if (uploadedCard) {
         uploadedCard.parentNode.insertBefore(
           dropsCard,
@@ -157,14 +183,14 @@ class MediaManager {
       }
     }
 
-    if (newsDrops.length === 0) {
+    if (!newsDrops || newsDrops.length === 0) {
       dropsCard.innerHTML = `
         <div class="card-header bg-white py-3 border-0">
           <h5 class="mb-0 fw-semibold text-secondary"><i class="fas fa-bolt me-2 text-warning"></i>Notícias em Tempo Real Ativas</h5>
         </div>
         <div class="card-body p-4 text-center text-muted">
           <i class="fas fa-unlink fa-2x mb-2 text-warning"></i>
-          <p class="mb-0 small">Aguardando conexão com os feeds de notícias do Jornal da Manhã e G1...</p>
+          <p class="mb-0 small">Aguardando conexão com os feeds de notícias...</p>
         </div>
       `;
       return;
@@ -173,12 +199,12 @@ class MediaManager {
     let html = `
       <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
         <h5 class="mb-0 fw-semibold text-secondary">
-          <i class="fas fa-bolt me-2 text-warning animate-pulse"></i>Fila de Drops da Indústria (Filtro Ativo em Tempo Real)
+          <i class="fas fa-bolt me-2 text-warning animate-pulse"></i>Fila de Drops da Indústria (Tempo Real)
         </h5>
         <span class="badge bg-primary rounded-pill">${newsDrops.length} Slides</span>
       </div>
       <div class="card-body p-4">
-        <p class="text-muted small mb-4">Abaixo estão listadas as notícias capturadas automaticamente do <strong>Jornal da Manhã de Uberaba</strong> e dos portais do <strong>G1</strong>. Elas são injetadas em tempo real na TV da recepção.</p>
+        <p class="text-muted small mb-4">Abaixo estão listadas as notícias capturadas automaticamente em tempo real.</p>
         <div class="row g-3">
     `;
 
@@ -199,13 +225,13 @@ class MediaManager {
             </div>
             <div class="flex-grow-1" style="min-width: 0;">
               <div class="d-flex justify-content-between align-items-center mb-1">
-                <span class="badge bg-secondary" style="font-size: 0.7rem;">${item.category}</span>
-                <span class="text-muted" style="font-size: 0.7rem;">${item.pubDate}</span>
+                <span class="badge bg-secondary" style="font-size: 0.7rem;">${item.category || "Geral"}</span>
+                <span class="text-muted" style="font-size: 0.7rem;">${item.pubDate || ""}</span>
               </div>
-              <h6 class="text-dark fw-bold text-truncate mb-1" style="font-size: 0.85rem;" title="${item.title}">${item.title}</h6>
-              <p class="text-muted mb-0 text-truncate" style="font-size: 0.75rem;">${item.summary}</p>
+              <h6 class="text-dark fw-bold text-truncate mb-1" style="font-size: 0.85rem;" title="${item.title || ""}">${item.title || ""}</h6>
+              <p class="text-muted mb-0 text-truncate" style="font-size: 0.75rem;">${item.summary || ""}</p>
               <div class="text-end mt-2" style="font-size: 0.7rem;">
-                <span class="text-primary fw-semibold"><i class="fas fa-globe me-1"></i>${item.source}</span>
+                <span class="text-primary fw-semibold"><i class="fas fa-globe me-1"></i>${item.source || "Feed"}</span>
               </div>
             </div>
           </div>
@@ -259,11 +285,14 @@ class MediaManager {
     const badgeColor = isImage ? "success" : "info";
     const badgeText = isImage ? "Imagem" : "Vídeo";
 
+    const photoSrc = this.resolveUrl(`uploads/photos/${item.file}`);
+    const videoSrc = this.resolveUrl(`uploads/videos/${item.file}`);
+
     const previewContent = isImage
-      ? `<img src="./uploads/photos/${item.file}" alt="${item.file}" class="img-fluid rounded">
+      ? `<img src="${photoSrc}" alt="${item.file}" class="img-fluid rounded">
          <div class="media-type-icon"><i class="fas fa-image"></i></div>`
       : `<video class="img-fluid rounded" muted preload="metadata">
-            <source src="./uploads/videos/${item.file}#t=0.5" type="video/mp4">
+            <source src="${videoSrc}#t=0.5" type="video/mp4">
          </video>
          <div class="media-type-icon"><i class="fas fa-video"></i></div>`;
 
@@ -290,7 +319,7 @@ class MediaManager {
         <h6 class="media-title text-truncate mb-2" title="${item.file}">${item.file}</h6>
         <div class="media-meta mb-3 d-flex align-items-center justify-content-between">
           <span class="badge bg-${badgeColor}">${badgeText}</span>
-          <span class="text-muted small">${new Date(item.uploaded_at).toLocaleDateString("pt-BR")}</span>
+          <span class="text-muted small">${new Date(item.uploaded_at || Date.now()).toLocaleDateString("pt-BR")}</span>
         </div>
         ${actionsContent}
       </div>
@@ -338,7 +367,13 @@ class MediaManager {
 
     try {
       const responseText = await this.sendUploadRequest(formData);
-      const data = JSON.parse(responseText);
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        console.error("Resposta de upload do servidor:", responseText);
+        throw new Error("Resposta inválida do servidor.");
+      }
 
       if (data.success) {
         this.showFeedback("Mídias publicadas com sucesso!", "success");
@@ -445,16 +480,19 @@ class MediaManager {
 
   handleDragOver(event) {
     event.preventDefault();
-    this.elements.dropZone.classList.add("dragging");
+    if (this.elements.dropZone)
+      this.elements.dropZone.classList.add("dragging");
   }
 
   handleDragLeave() {
-    this.elements.dropZone.classList.remove("dragging");
+    if (this.elements.dropZone)
+      this.elements.dropZone.classList.remove("dragging");
   }
 
   handleDrop(event) {
     event.preventDefault();
-    this.elements.dropZone.classList.remove("dragging");
+    if (this.elements.dropZone)
+      this.elements.dropZone.classList.remove("dragging");
     const files = Array.from(event.dataTransfer.files);
     this.processFiles(files);
   }
@@ -554,7 +592,9 @@ class MediaManager {
 
   resetFileSelection() {
     this.selectedFiles = [];
-    this.elements.filePreviewList.innerHTML = "";
+    if (this.elements.filePreviewList) {
+      this.elements.filePreviewList.innerHTML = "";
+    }
   }
 
   handleSearch(event) {

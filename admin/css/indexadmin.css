@@ -69,7 +69,6 @@ body.admin-body {
 
 /* Main Content Area */
 .main-content {
-  margin-left: 260px;
   width: calc(100% - 260px);
   min-width: 0;
   transition: var(--transition);
@@ -289,3 +288,4 @@ body.admin-body {
     font-size: 1.5rem;
   }
 }
+

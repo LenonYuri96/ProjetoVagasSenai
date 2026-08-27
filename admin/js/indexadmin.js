@@ -2,7 +2,8 @@
  * AdminSlideshow - Controlador do Preview de Slides (Singleton Pattern)
  * Evita vazamento de memória e concorrência de timeouts na área de administração.
  *
- * CORREÇÃO: Vinculação de escopo explícita (bind) no construtor para evitar erro de "this" indefinido.
+/**
+ * AdminSlideshow - Controlador do Preview de Slides (Singleton Pattern)
  */
 class AdminSlideshow {
   constructor() {
@@ -16,12 +17,20 @@ class AdminSlideshow {
     this.slideshowTimeout = null;
     this.activeVideoElement = null;
 
-    // Vinculação explícita para blindar o escopo do "this" contra perdas no loop de eventos
+    // Vinculação explícita do escopo
     this.nextItem = this.nextItem.bind(this);
     this.showItem = this.showItem.bind(this);
     this.showImage = this.showImage.bind(this);
     this.showVideo = this.showVideo.bind(this);
     this.showNewsDrop = this.showNewsDrop.bind(this);
+  }
+
+  // Método auxiliar para resolver URL com segurança
+  resolveUrl(path) {
+    if (typeof window.getLocalUrl === "function") {
+      return window.getLocalUrl(path);
+    }
+    return `../${path}`;
   }
 
   start(items) {
@@ -54,7 +63,8 @@ class AdminSlideshow {
 
   showImage(item, container) {
     const img = document.createElement("img");
-    img.src = `./uploads/photos/${item.file}`;
+    // Resolve dinamicamente uploads/photos/...
+    img.src = this.resolveUrl(`uploads/photos/${item.file}`);
     img.alt = "Preview do Slide";
     img.style.width = "100%";
     img.style.height = "100%";
@@ -70,12 +80,13 @@ class AdminSlideshow {
 
   showVideo(item, container) {
     const video = document.createElement("video");
-    video.src = `./uploads/videos/${item.file}`;
+    // Resolve dinamicamente uploads/videos/...
+    video.src = this.resolveUrl(`uploads/videos/${item.file}`);
     video.style.width = "100%";
     video.style.height = "100%";
     video.style.objectFit = "contain";
     video.autoplay = true;
-    video.muted = true; // Mantém mutado no Admin por usabilidade
+    video.muted = true;
     video.controls = true;
     video.className = "fade-in";
     container.appendChild(video);
@@ -83,10 +94,7 @@ class AdminSlideshow {
     this.activeVideoElement = video;
 
     video.play().catch((error) => {
-      console.warn(
-        "Autoplay bloqueado na visualização administrativa:",
-        error.message,
-      );
+      console.warn("Autoplay bloqueado no preview:", error.message);
       this.nextItem();
     });
 
@@ -95,9 +103,6 @@ class AdminSlideshow {
     };
   }
 
-  /**
-   * Renderiza o Card de Notícias em tempo real exatamente como é exibido na TV
-   */
   showNewsDrop(item, container) {
     const dropsCard = document.createElement("div");
     dropsCard.className = "drops-card fade-in";
@@ -139,9 +144,9 @@ class AdminSlideshow {
 
       let iconClass = "fa-industry";
       if (
-        item.category === "Uberaba" ||
-        item.category === "Minas Gerais" ||
-        item.category.includes("Uberaba")
+        item.category &&
+        (item.category.includes("Uberaba") ||
+          item.category.includes("Minas Gerais"))
       ) {
         iconClass = "fa-map-marker-alt";
       } else if (item.category === "SENAI") {
@@ -154,7 +159,7 @@ class AdminSlideshow {
       `;
     }
 
-    // Lado Direito: Informações e Metadados do letreiro
+    // Lado Direito: Informações
     const rightPane = document.createElement("div");
     rightPane.className = "drops-info-pane";
     rightPane.style.padding = "1.5rem";
@@ -170,16 +175,16 @@ class AdminSlideshow {
           <i class="fas fa-bolt me-1 animate-pulse"></i> Drops da Indústria
         </span>
         <span class="drops-category-tag" style="background: rgba(255, 255, 255, 0.1); color: #e2e8f0; padding: 4px 10px; font-weight: 700; font-size: 0.65rem; border-radius: 4px; text-transform: uppercase;">
-          ${item.category}
+          ${item.category || "Geral"}
         </span>
       </div>
-      <h4 class="drops-headline" style="font-size: 1.15rem; font-weight: 800; line-height: 1.3; color: white; margin-bottom: 0.8rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${item.title}</h4>
+      <h4 class="drops-headline" style="font-size: 1.15rem; font-weight: 800; line-height: 1.3; color: white; margin-bottom: 0.8rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${item.title || ""}</h4>
       <p class="drops-summary" style="font-size: 0.8rem; color: #94a3b8; line-height: 1.5; margin-bottom: 1rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
-        ${item.summary}
+        ${item.summary || ""}
       </p>
       <div class="drops-source-row" style="display: flex; align-items: center; gap: 10px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 0.8rem; font-size: 0.75rem; color: #64748b; margin-top: auto;">
-        <span class="drops-source-badge" style="background-color: #1e293b; color: #cbd5e1; padding: 2px 8px; border-radius: 4px; font-weight: 600;">${item.source}</span>
-        <span><i class="far fa-calendar-alt me-1"></i> ${item.pubDate}</span>
+        <span class="drops-source-badge" style="background-color: #1e293b; color: #cbd5e1; padding: 2px 8px; border-radius: 4px; font-weight: 600;">${item.source || "SENAI"}</span>
+        <span><i class="far fa-calendar-alt me-1"></i> ${item.pubDate || ""}</span>
       </div>
     `;
 
@@ -187,7 +192,6 @@ class AdminSlideshow {
     dropsCard.appendChild(rightPane);
     container.appendChild(dropsCard);
 
-    // Se o Drop contiver vídeo integrado, deixa o vídeo guiar o tempo do slide
     if (item.hasVideo && this.activeVideoElement) {
       this.activeVideoElement.play().catch(() => {
         this.slideshowTimeout = setTimeout(() => this.nextItem(), 12000);
@@ -196,7 +200,7 @@ class AdminSlideshow {
     } else {
       this.slideshowTimeout = setTimeout(() => {
         this.nextItem();
-      }, 12000); // Exibe por 12 segundos fixos no painel admin
+      }, 12000);
     }
   }
 
@@ -225,6 +229,11 @@ class AdminSlideshow {
     this.uploadedItems = [];
   }
 }
+
+window.startSlideshow = function (items) {
+  const previewer = new AdminSlideshow();
+  previewer.start(items);
+};
 
 window.startSlideshow = function (items) {
   const previewer = new AdminSlideshow();

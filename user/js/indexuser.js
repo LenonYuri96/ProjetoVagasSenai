@@ -2,11 +2,17 @@
  * MediaViewer - Motor de Controle de Slideshow e Painel de TV
  * Gerencia a renderização, reprodução sequencial e gatilhos de exibição em Smart TVs.
  *
- * ATUALIZAÇÃO: Sincronização em tempo real (20s) com "Hot-Swap em Memória",
- * e suporte a imagens de fallback locais personalizadas por categoria (senai, fiemg, instagram, industria).
+ * CORREÇÃO: Normalização dinâmica de caminhos locais.
  */
 class MediaViewer {
   constructor() {
+    // ===== DETECÇÃO AUTOMÁTICA DA BASE DO PROJETO =====
+    const path = window.location.pathname;
+    const match = path.match(/^(\/[^/]*\/)(?:user|admin)\//);
+    this.basePath = match ? match[1] : "/";
+    if (this.basePath === "/") this.basePath = "";
+    console.log(`[MediaViewer] Caminho base detectado: "${this.basePath}"`);
+
     this.localSlides = [];
     this.newsDrops = [];
     this.compiledQueue = [];
@@ -16,21 +22,34 @@ class MediaViewer {
     this.currentVideoListener = null;
     this.mediaElements = [];
 
-    // Hashes para monitorar mudanças de estado de forma independente
     this.previousLocalHash = "";
     this.previousNewsHash = "";
-
-    // Flag para reconstrução de fila em memória (evita page reload e perda de fullscreen)
     this.needsRebuild = false;
-
     this.isFullscreenActive = false;
 
     this.init();
   }
 
+  // ===== NORMALIZAÇÃO DE CAMINHOS LOCAIS =====
+  getLocalUrl(path) {
+    if (!path) return "";
+    if (
+      path.startsWith("http://") ||
+      path.startsWith("https://") ||
+      path.startsWith("//")
+    ) {
+      return path;
+    }
+    if (this.basePath && path.startsWith(this.basePath)) {
+      return path;
+    }
+    const clean = path.replace(/^\/+/, "");
+    return this.basePath ? this.basePath + clean : "/" + clean;
+  }
+
   init() {
     this.setupClock();
-    this.setupWeather(); // Inicializa o clima nativo em texto/emoji
+    this.setupWeather();
     this.setupGlobalInteractions();
     this.setupTvFullscreenMode();
     this.startPollingCycles();
@@ -53,9 +72,6 @@ class MediaViewer {
     setInterval(updateClock, 1000);
   }
 
-  /**
-   * Clima Nativo em tempo real - Open-Meteo API
-   */
   setupWeather() {
     const updateWeather = async () => {
       try {
@@ -101,54 +117,38 @@ class MediaViewer {
           const weatherElement = document.getElementById("weather-display");
           if (weatherElement) {
             weatherElement.innerHTML = `
-              <span class="weather-city">UBERABA</span>
-              <span class="weather-temp">${temp}°C</span>
-              <span class="weather-emoji">${weatherInfo.emoji}</span>
-              <span class="weather-desc">${weatherInfo.desc}</span>
-            `;
+                                        <span class="weather-city">UBERABA</span>
+                                        <span class="weather-temp">${temp}°C</span>
+                                        <span class="weather-emoji">${weatherInfo.emoji}</span>
+                                        <span class="weather-desc">${weatherInfo.desc}</span>
+                                    `;
           }
         }
       } catch (error) {
-        console.warn(
-          "Falha ao buscar dados climáticos no Open-Meteo:",
-          error.message,
-        );
+        console.warn("Falha ao buscar dados climáticos:", error.message);
       }
     };
-
     updateWeather();
     setInterval(updateWeather, 15 * 60 * 1000);
   }
 
-  /**
-   * Monitoramento de novas mídias locais e canais externos
-   */
   startPollingCycles() {
     this.syncLocalContent();
     this.syncExternalContent();
-
-    // 1. MONITORAMENTO LOCAL RÁPIDO (A cada 20 segundos)
     setInterval(() => this.syncLocalContent(), 20 * 1000);
-
-    // 2. MONITORAMENTO DE REDES SOCIAIS E NOTÍCIAS (A cada 10 minutos)
     setInterval(() => this.syncExternalContent(), 10 * 60 * 1000);
   }
 
-  /**
-   * Puxa e verifica atualizações de mídias locais (config.json)
-   */
   async syncLocalContent() {
     try {
-      const configRes = await fetch("../admin/config.json", {
+      // AGORA BUSCA DO BANCO VIA PHP
+      const configUrl = this.getLocalUrl("admin/php/list_uploads.php");
+      const configRes = await fetch(configUrl, {
         cache: "no-store",
-        headers: {
-          Pragma: "no-cache",
-          "Cache-Control": "no-cache",
-        },
+        headers: { Pragma: "no-cache", "Cache-Control": "no-cache" },
       });
-      if (!configRes.ok) throw new Error("Falha ao puxar config.json");
+      if (!configRes.ok) throw new Error("Falha ao puxar list_uploads.php");
       const localData = await configRes.json();
-
       const localHash = JSON.stringify(localData);
 
       if (this.previousLocalHash === "") {
@@ -156,9 +156,7 @@ class MediaViewer {
         this.localSlides = localData;
         this.compileSlideshowQueue();
       } else if (localHash !== this.previousLocalHash) {
-        console.log(
-          "[MediaViewer] Novas mídias locais detectadas! Agendando atualização na memória...",
-        );
+        console.log("[MediaViewer] Novas mídias locais detectadas!");
         this.previousLocalHash = localHash;
         this.localSlides = localData;
         this.needsRebuild = true;
@@ -168,40 +166,28 @@ class MediaViewer {
     }
   }
 
-  /**
-   * Puxa e verifica atualizações das mídias externas (notícias e Instagram)
-   */
   async syncExternalContent() {
     try {
       if (window.DropsEngineInstance) {
         const fetchedNews =
           await window.DropsEngineInstance.fetchAndProcessDrops();
         const newsHash = JSON.stringify(fetchedNews);
-
         if (this.previousNewsHash === "") {
           this.previousNewsHash = newsHash;
           this.newsDrops = fetchedNews;
           this.compileSlideshowQueue();
         } else if (newsHash !== this.previousNewsHash) {
-          console.log(
-            "[MediaViewer] Novidades nas redes sociais/notícias! Agendando atualização na memória...",
-          );
+          console.log("[MediaViewer] Novidades nas redes sociais/notícias!");
           this.previousNewsHash = newsHash;
           this.newsDrops = fetchedNews;
           this.needsRebuild = true;
         }
       }
     } catch (error) {
-      console.warn(
-        "Erro ao sincronizar canais corporativos externos:",
-        error.message,
-      );
+      console.warn("Erro ao sincronizar canais externos:", error.message);
     }
   }
 
-  /**
-   * Intercala: 1 Drops da Indústria/Instagram para cada 2 mídias cadastradas pelo Admin
-   */
   compileSlideshowQueue() {
     this.cleanupCurrentTimer();
     this.compiledQueue = [];
@@ -227,19 +213,14 @@ class MediaViewer {
 
     this.currentIndex = 0;
     this.renderMediaElements();
-
     if (this.compiledQueue.length > 0) {
       this.displayCurrentIndex();
     }
   }
 
-  /**
-   * Renderiza os elementos com estrutura de fallbacks locais inteligentes (sem telas pretas)
-   */
   renderMediaElements() {
     const displayArea = document.getElementById("display-area");
     if (!displayArea) return;
-
     displayArea.innerHTML = "";
     this.mediaElements = [];
 
@@ -249,14 +230,17 @@ class MediaViewer {
 
       let mediaElement;
 
-      // RESOLUÇÃO: Escolhe de forma inteligente a imagem local baseada no tipo ou categoria do drop
-      let localFallback = "../../admin/images/fallbacks/industria.jpg";
+      let localFallback = this.getLocalUrl(
+        "admin/images/fallbacks/industria.jpg",
+      );
       if (item.isInstagram) {
-        localFallback = "../../admin/images/fallbacks/instagram.jpg";
+        localFallback = this.getLocalUrl(
+          "admin/images/fallbacks/instagram.jpg",
+        );
       } else if (item.category && item.category.includes("SENAI")) {
-        localFallback = "../../admin/images/fallbacks/senai.jpg";
+        localFallback = this.getLocalUrl("admin/images/fallbacks/senai.jpg");
       } else if (item.category && item.category.includes("FIEMG")) {
-        localFallback = "../../admin/images/fallbacks/fiemg.jpg";
+        localFallback = this.getLocalUrl("admin/images/fallbacks/fiemg.jpg");
       }
 
       if (item.type === "news_drop") {
@@ -266,37 +250,46 @@ class MediaViewer {
         const leftPane = document.createElement("div");
         const hasVideo = item.isVideo || item.hasVideo;
 
-        // Duplo tratamento de fallback com onerror para evitar telas vazias
-        if (hasVideo && item.video) {
+        let videoSrc = item.video ? this.getLocalUrl(item.video) : null;
+        let imageSrc = item.image
+          ? this.getLocalUrl(item.image)
+          : localFallback;
+
+        if (item.image && item.image.includes("wsrv.nl")) {
+          imageSrc = item.image;
+        }
+
+        if (hasVideo && videoSrc) {
           leftPane.className = "drops-image-pane";
           leftPane.innerHTML = `
-            <video class="drops-img" src="${item.video}" autoplay muted loop playsinline referrerpolicy="no-referrer" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-            </video>
-            <img src="${item.image || localFallback}" alt="Notícia" class="drops-img fallback-image" style="display:none;" referrerpolicy="no-referrer" onerror="this.src='${localFallback}';">
-            <div class="drops-image-overlay"></div>
-          `;
-        } else if (item.image) {
+                                    <video class="drops-img" src="${videoSrc}" autoplay muted loop playsinline referrerpolicy="no-referrer" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                    </video>
+                                    <img src="${imageSrc}" alt="Notícia" class="drops-img fallback-image" style="display:none;" referrerpolicy="no-referrer" onerror="this.src='${localFallback}';">
+                                    <div class="drops-image-overlay"></div>
+                                `;
+        } else if (imageSrc) {
           leftPane.className = "drops-image-pane";
           leftPane.innerHTML = `
-            <img src="${item.image}" alt="Notícia" class="drops-img" referrerpolicy="no-referrer" onerror="this.src='${localFallback}';">
-            <div class="drops-image-overlay"></div>
-          `;
+                                    <img src="${imageSrc}" alt="Notícia" class="drops-img" referrerpolicy="no-referrer" onerror="this.src='${localFallback}';">
+                                    <div class="drops-image-overlay"></div>
+                                `;
         } else {
           leftPane.className = "drops-fallback-pane";
           let iconClass = "fa-industry";
-          if (item.category.includes("Instagram")) iconClass = "fa-instagram";
+          if (item.category && item.category.includes("Instagram"))
+            iconClass = "fa-instagram";
           else if (
             item.category === "SENAI MG" ||
             item.category === "SENAI Nacional" ||
             item.category === "SENAI Uberaba"
           )
             iconClass = "fa-graduation-cap";
-          else if (item.category.includes("FIEMG")) iconClass = "fa-building";
-
+          else if (item.category && item.category.includes("FIEMG"))
+            iconClass = "fa-building";
           leftPane.innerHTML = `
-            <i class="fas ${iconClass} drops-fallback-icon"></i>
-            <div class="drops-image-overlay"></div>
-          `;
+                                    <i class="fas ${iconClass} drops-fallback-icon"></i>
+                                    <div class="drops-image-overlay"></div>
+                                `;
         }
 
         const rightPane = document.createElement("div");
@@ -307,38 +300,40 @@ class MediaViewer {
           : `<span class="drops-main-tag"><i class="fas fa-bolt me-1 animate-pulse"></i> Drops da Indústria</span>`;
 
         rightPane.innerHTML = `
-          <div class="drops-badge-row">
-            ${mainTagHtml}
-            <span class="drops-category-tag">${item.category}</span>
-          </div>
-          <h2 class="drops-headline">${item.title}</h2>
-          <p class="drops-summary">${item.summary || "Acesse o portal do SENAI para conferir todos os detalhes e desdobramentos desta matéria pública."}</p>
-          <div class="drops-source-row">
-            <span class="drops-source-badge">${item.source}</span>
-            <span><i class="far fa-calendar-alt me-1"></i> ${item.pubDate}</span>
-          </div>
-        `;
+                                <div class="drops-badge-row">
+                                    ${mainTagHtml}
+                                    <span class="drops-category-tag">${item.category || "Geral"}</span>
+                                </div>
+                                <h2 class="drops-headline">${item.title || "Notícia"}</h2>
+                                <p class="drops-summary">${item.summary || "Acesse o portal do SENAI para conferir todos os detalhes e desdobramentos desta matéria pública."}</p>
+                                <div class="drops-source-row">
+                                    <span class="drops-source-badge">${item.source || "Portal"}</span>
+                                    <span><i class="far fa-calendar-alt me-1"></i> ${item.pubDate || "Atualizado"}</span>
+                                </div>
+                            `;
 
         dropsCard.appendChild(leftPane);
         dropsCard.appendChild(rightPane);
         container.appendChild(dropsCard);
-
         mediaElement = dropsCard;
       } else {
         if (item.type === "image") {
           mediaElement = document.createElement("img");
-          mediaElement.src = `../../admin/uploads/photos/${item.file}`;
+          const imgUrl = this.getLocalUrl(`admin/uploads/photos/${item.file}`);
+          mediaElement.src = imgUrl;
           mediaElement.alt = `Campaign ${index}`;
           mediaElement.style.width = "100%";
           mediaElement.style.height = "100%";
           mediaElement.style.objectFit = "contain";
-
           mediaElement.onerror = () => {
             mediaElement.src = localFallback;
           };
         } else {
           mediaElement = document.createElement("video");
-          mediaElement.src = `../../admin/uploads/videos/${item.file}`;
+          const videoUrl = this.getLocalUrl(
+            `admin/uploads/videos/${item.file}`,
+          );
+          mediaElement.src = videoUrl;
           mediaElement.preload = "auto";
           mediaElement.style.width = "100%";
           mediaElement.style.height = "100%";
@@ -347,7 +342,6 @@ class MediaViewer {
           mediaElement.playsInline = true;
           mediaElement.setAttribute("playsinline", "");
           mediaElement.setAttribute("webkit-playsinline", "");
-
           mediaElement.onerror = () => {
             console.warn(`Erro no carregamento do arquivo local: ${item.file}`);
           };
@@ -372,7 +366,6 @@ class MediaViewer {
 
   async displayCurrentIndex() {
     this.cleanupCurrentTimer();
-
     const currentMedia = this.mediaElements[this.currentIndex];
     if (!currentMedia) return;
 
@@ -393,7 +386,6 @@ class MediaViewer {
     });
 
     currentMedia.container.classList.add("active");
-
     this.removeFloatingAudioHint();
 
     const isNewsWithVideo =
@@ -401,10 +393,10 @@ class MediaViewer {
 
     if (currentMedia.type === "image" || currentMedia.type === "news_drop") {
       this.updateProgressBar(currentMedia.displayTime);
-
-      this.slideshowTimeout = setTimeout(() => {
-        this.advanceSlideshow();
-      }, currentMedia.displayTime);
+      this.slideshowTimeout = setTimeout(
+        () => this.advanceSlideshow(),
+        currentMedia.displayTime,
+      );
 
       if (isNewsWithVideo) {
         const video = currentMedia.element.querySelector("video");
@@ -413,7 +405,6 @@ class MediaViewer {
             video.currentTime = 0;
             video.loop = true;
             await video.play();
-
             if (window.globalUserHasInteracted) {
               video.muted = false;
             } else {
@@ -425,51 +416,37 @@ class MediaViewer {
               error.message,
             );
             video.muted = true;
-            video
-              .play()
-              .catch((e) => console.error("Erro ao forçar play mutado:", e));
+            video.play().catch((e) => console.error(e));
           }
         }
       }
     } else {
       let video = currentMedia.element;
-
       if (video) {
         video.onerror = () => {
-          console.warn(
-            "Falha crítica no vídeo local do admin. Avançando slideshow...",
-          );
+          console.warn("Falha crítica no vídeo local. Avançando...");
           this.advanceSlideshow();
         };
-
         try {
           video.currentTime = 0;
           await video.play();
-
           if (window.globalUserHasInteracted) {
             video.muted = false;
           } else {
             this.createFloatingAudioHint(video);
           }
-
           this.updateProgressBarForVideo(video);
         } catch (error) {
-          console.warn(
-            "Autoplay do vídeo local bloqueado pelo navegador:",
-            error.message,
-          );
+          console.warn("Autoplay bloqueado:", error.message);
           video.muted = true;
           video.play().catch((e) => {
-            console.error("Falha ao inicializar player local:", e);
+            console.error("Falha ao inicializar player:", e);
             this.advanceSlideshow();
           });
           this.createFloatingAudioHint(video);
           this.updateProgressBarForVideo(video);
         }
-
-        video.onended = () => {
-          this.advanceSlideshow();
-        };
+        video.onended = () => this.advanceSlideshow();
       } else {
         this.updateProgressBar(5000);
         this.slideshowTimeout = setTimeout(() => this.advanceSlideshow(), 5000);
@@ -477,50 +454,33 @@ class MediaViewer {
     }
   }
 
-  /**
-   * Avança de slide ou reconstrói dinamicamente a fila em memória (Hot-Swap) sem reloads
-   */
   advanceSlideshow() {
     if (this.needsRebuild) {
-      console.log(
-        "[MediaViewer] Novas mídias detectadas. Atualizando a fila na memória de forma transparente...",
-      );
+      console.log("[MediaViewer] Novas mídias detectadas. Atualizando fila...");
       this.needsRebuild = false;
       this.compileSlideshowQueue();
       return;
     }
-
     if (this.compiledQueue.length === 0) return;
     this.currentIndex = (this.currentIndex + 1) % this.compiledQueue.length;
     this.displayCurrentIndex();
   }
 
-  /**
-   * Executa a barra de progresso em tempo real baseada em transição CSS acelerada
-   */
   updateProgressBar(duration) {
     const progressBar = document.getElementById("slide-progress-bar");
     if (!progressBar) return;
-
     progressBar.style.transition = "none";
     progressBar.style.width = "0%";
-
     progressBar.offsetHeight;
-
     progressBar.style.transition = `width ${duration}ms linear`;
     progressBar.style.width = "100%";
   }
 
-  /**
-   * Vincula o preenchimento da barra de progresso diretamente ao andamento nativo do vídeo
-   */
   updateProgressBarForVideo(video) {
     const progressBar = document.getElementById("slide-progress-bar");
     if (!progressBar) return;
-
     progressBar.style.transition = "none";
     progressBar.style.width = "0%";
-
     const onTimeUpdate = () => {
       if (video.duration) {
         const percent = (video.currentTime / video.duration) * 100;
@@ -528,7 +488,6 @@ class MediaViewer {
         progressBar.style.width = `${percent}%`;
       }
     };
-
     video.addEventListener("timeupdate", onTimeUpdate);
     this.currentVideoListener = { video, listener: onTimeUpdate };
   }
@@ -547,7 +506,6 @@ class MediaViewer {
       this.unmuteAllVideos();
       this.removeFloatingAudioHint();
     };
-
     document.addEventListener("click", enableGlobalAudio, { once: true });
     document.addEventListener("touchstart", enableGlobalAudio, { once: true });
     document.addEventListener("keydown", enableGlobalAudio, { once: true });
@@ -570,13 +528,11 @@ class MediaViewer {
 
     const requestFullscreenOnTV = () => {
       const docEl = document.documentElement;
-
       const requestFS =
         docEl.requestFullscreen ||
         docEl.webkitRequestFullscreen ||
         docEl.mozRequestFullScreen ||
         docEl.msRequestFullscreen;
-
       if (requestFS) {
         requestFS
           .call(docEl)
@@ -588,10 +544,7 @@ class MediaViewer {
             this.removeFloatingAudioHint();
           })
           .catch((err) => {
-            console.warn(
-              "Navegador de TV bloqueou fullscreen por políticas restritivas:",
-              err,
-            );
+            console.warn("Fullscreen bloqueado:", err);
             overlay.classList.add("hidden");
             window.globalUserHasInteracted = true;
           });
@@ -601,7 +554,6 @@ class MediaViewer {
       }
     };
 
-    // TENTATIVA PROGRAMÁTICA IMEDIATA:
     setTimeout(() => {
       const docEl = document.documentElement;
       const requestFS =
@@ -609,7 +561,6 @@ class MediaViewer {
         docEl.webkitRequestFullscreen ||
         docEl.mozRequestFullScreen ||
         docEl.msRequestFullscreen;
-
       if (requestFS && !this.isFullscreenActive) {
         requestFS
           .call(docEl)
@@ -622,7 +573,7 @@ class MediaViewer {
           })
           .catch(() => {
             console.log(
-              "[MediaViewer] Tela cheia automática indisponível na carga inicial. Aguardando clique.",
+              "[MediaViewer] Tela cheia automática indisponível na carga inicial.",
             );
           });
       }
@@ -630,10 +581,8 @@ class MediaViewer {
 
     overlay.addEventListener("click", requestFullscreenOnTV);
     overlay.addEventListener("touchstart", requestFullscreenOnTV);
-    document.addEventListener("keydown", (e) => {
-      if (!this.isFullscreenActive) {
-        requestFullscreenOnTV();
-      }
+    document.addEventListener("keydown", () => {
+      if (!this.isFullscreenActive) requestFullscreenOnTV();
     });
 
     const handleFullscreenChange = () => {
@@ -642,13 +591,11 @@ class MediaViewer {
         document.webkitFullscreenElement ||
         document.mozFullScreenElement ||
         document.msFullscreenElement;
-
       if (!activeFS) {
         this.isFullscreenActive = false;
         overlay.classList.remove("hidden");
       }
     };
-
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
     document.addEventListener("mozfullscreenchange", handleFullscreenChange);
@@ -657,7 +604,6 @@ class MediaViewer {
 
   createFloatingAudioHint(activeVideo) {
     this.removeFloatingAudioHint();
-
     const hint = document.createElement("button");
     hint.className = "unmute-btn fade-in";
     hint.innerHTML =
@@ -666,14 +612,12 @@ class MediaViewer {
     hint.style.bottom = "24px";
     hint.style.right = "24px";
     hint.style.zIndex = "999";
-
     hint.onclick = (e) => {
       e.stopPropagation();
       window.globalUserHasInteracted = true;
       activeVideo.muted = false;
       hint.remove();
     };
-
     const displayArea = document.getElementById("display-area");
     if (displayArea) displayArea.appendChild(hint);
   }
@@ -691,6 +635,7 @@ class MediaViewer {
   }
 }
 
+// Instancia o MediaViewer após o DOM estar pronto
 document.addEventListener("DOMContentLoaded", () => {
   new MediaViewer();
 });

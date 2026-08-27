@@ -1,36 +1,36 @@
 <?php
-// Exibe erros para facilitar a depuração
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
+session_start();
+require_once 'auth_check.php';
+require_once 'db.php';
+require_once 'config.php';
 
-// Caminho do arquivo JSON
-$jsonPath = '../config.json';
+$data = json_decode(file_get_contents('php://input'), true);
+$id = (int)$data['id'];
 
-// Lê o JSON existente
-$jsonData = json_decode(file_get_contents($jsonPath), true);
+try {
+    $pdo = getDB();
 
-// Verifica se a requisição é um POST
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $data = json_decode(file_get_contents('php://input'), true);
-    $id = $data['id']; // Assumindo que o ID é passado no corpo da requisição
+    // Buscar arquivo para deletar fisicamente
+    $stmt = $pdo->prepare("SELECT arquivo, tipo FROM midias WHERE id = ?");
+    $stmt->execute([$id]);
+    $row = $stmt->fetch();
 
-    // Procura pelo item com o ID e remove-o
-    foreach ($jsonData as $key => $item) {
-        if (isset($item['id']) && $item['id'] == $id) {
-            unset($jsonData[$key]);
-            break;
-        }
+    if (!$row) {
+        echo json_encode(['success' => false, 'message' => 'Item não encontrado']);
+        exit;
     }
 
-    // Grava o JSON atualizado
-    file_put_contents($jsonPath, json_encode(array_values($jsonData), JSON_PRETTY_PRINT));
+    $dir = ($row['tipo'] === 'image') ? UPLOAD_DIR_PHOTOS : UPLOAD_DIR_VIDEOS;
+    $filePath = $dir . $row['arquivo'];
+    if (file_exists($filePath)) {
+        unlink($filePath);
+    }
 
-    // Retorna resposta JSON
+    $stmt = $pdo->prepare("DELETE FROM midias WHERE id = ?");
+    $stmt->execute([$id]);
+
     echo json_encode(['success' => true]);
-    exit; // Adiciona isto para evitar saída adicional
-} else {
-    echo json_encode(['success' => false, 'message' => 'Método inválido']);
-    exit;
+} catch (PDOException $e) {
+    echo json_encode(['success' => false, 'message' => 'Erro ao excluir: ' . $e->getMessage()]);
 }
 ?>
