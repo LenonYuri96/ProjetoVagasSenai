@@ -1,5 +1,6 @@
 <?php
 require_once 'php/session_config.php';
+
 // ============================================================
 // VERIFICAÇÃO DE AUTENTICAÇÃO (SERVER-SIDE)
 // ============================================================
@@ -30,7 +31,7 @@ function getFileVersion($file)
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Administração SENAI - Upload de Mídia</title>
+    <title>Administração SENAI - Upload de Mídia e IA</title>
 
     <!-- ============================================================ -->
     <!-- CSS COM VERSIONAMENTO ANTI-CACHE                             -->
@@ -39,6 +40,8 @@ function getFileVersion($file)
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- CSS do Admin -->
     <link rel="stylesheet" href="./css/indexadmin.css?v=<?= getFileVersion('./css/indexadmin.css') ?>">
     <link rel="icon" href="./images/favicon.ico?v=<?= getFileVersion('./images/favicon.ico') ?>" type="image/x-icon">
@@ -413,7 +416,7 @@ function getFileVersion($file)
 
 <body class="admin-body">
     <div class="admin-layout">
-        <!-- Sidebar -->
+        <!-- Sidebar Navigation -->
         <aside class="sidebar">
             <div class="sidebar-header d-flex align-items-center justify-content-between">
                 <div>
@@ -421,8 +424,8 @@ function getFileVersion($file)
                         onerror="this.style.display='none'">
                     <h5 class="text-white opacity-75 mb-0 fw-semibold">Painel Admin</h5>
                 </div>
-                <!-- Logout -->
-                <a href="./php/logout.php" class="btn btn-outline-light btn-sm">
+                <!-- Logout Seguro -->
+                <a href="./php/logout.php" class="btn btn-outline-light btn-sm" title="Encerrar Sessão">
                     <i class="fas fa-sign-out-alt"></i> Sair
                 </a>
             </div>
@@ -492,7 +495,7 @@ function getFileVersion($file)
                     </div>
                 </section>
 
-                <!-- Upload -->
+                <!-- Seção de Upload & Inteligência Artificial -->
                 <section class="card border-0 mb-4 shadow-sm">
                     <div class="card-header bg-white py-3 border-0">
                         <h5 class="mb-0 fw-semibold text-secondary"><i
@@ -503,13 +506,14 @@ function getFileVersion($file)
                             <i class="fas fa-cloud-upload-alt fa-3x mb-3 text-primary"></i>
                             <h5 class="fw-semibold text-dark">Arraste e solte seus arquivos aqui</h5>
                             <p class="text-muted mb-3 small">Formatos suportados: JPG, PNG, GIF, MP4, WEBM (Limite:
-                                30MB)</p>
+                                500MB)</p>
                             <button class="btn btn-outline-primary px-4 py-2" type="button">
                                 <i class="fas fa-folder-open me-2"></i>Selecionar Arquivos
                             </button>
                             <input type="file" id="file-input" name="files[]" multiple class="d-none">
                         </div>
 
+                        <!-- Lista de arquivos selecionados -->
                         <div id="file-preview-list" class="mb-4"></div>
 
                         <div id="progress-container" class="progress-container d-none mb-4">
@@ -527,6 +531,22 @@ function getFileVersion($file)
                         <button id="upload-btn" class="btn btn-primary w-100 py-3 fw-semibold">
                             <i class="fas fa-upload me-2"></i>Iniciar Upload
                         </button>
+
+                        <!-- Barra de Ferramentas com Gemini IA -->
+                        <div
+                            class="mt-3 d-flex flex-wrap justify-content-between align-items-center p-3 bg-light rounded border">
+                            <div class="d-flex align-items-center gap-2 mb-2 mb-md-0">
+                                <span class="badge bg-primary text-uppercase px-2 py-1" style="letter-spacing: 0.5px;">
+                                    <i class="fas fa-microchip me-1"></i> Gemini IA
+                                </span>
+                                <span class="small text-muted">Gere pílulas de conhecimento industrial automáticas para
+                                    o Totem</span>
+                            </div>
+                            <button type="button" id="btn-ai-tip"
+                                class="btn btn-outline-primary btn-sm px-3 fw-semibold">
+                                <i class="fas fa-wand-magic-sparkles me-2"></i>Gerar Dica com IA para o Totem
+                            </button>
+                        </div>
                     </div>
                 </section>
 
@@ -552,12 +572,12 @@ function getFileVersion($file)
                     <div class="card-body p-4">
                         <div id="feedback-message" class="alert d-none" role="alert"></div>
                         <div id="uploaded-list" class="row g-4">
-                            <!-- Dinâmico -->
+                            <!-- Inseridos dinamicamente -->
                         </div>
                     </div>
                 </section>
 
-                <!-- Visualização Prévia -->
+                <!-- Área de visualização (Preview ao vivo dos Slides) -->
                 <section id="display-area" class="mt-4 d-none">
                     <div class="card border-0 shadow-sm">
                         <div class="card-header bg-white py-3">
@@ -566,7 +586,7 @@ function getFileVersion($file)
                         </div>
                         <div class="card-body text-center bg-dark p-0 rounded-bottom overflow-hidden">
                             <div class="preview-container">
-                                <!-- Dinâmico -->
+                                <!-- Inserido dinamicamente -->
                             </div>
                         </div>
                     </div>
@@ -579,10 +599,11 @@ function getFileVersion($file)
                     <div class="row align-items-center text-center text-md-start">
                         <div class="col-md-6">
                             <p class="mb-0 text-muted small"><i class="fas fa-copyright me-1"></i> <?= date('Y') ?>
-                                SENAI - Sistema de Vagas</p>
+                                SENAI - Sistema
+                                de Mídias e Totem</p>
                         </div>
                         <div class="col-md-6 text-md-end mt-2 mt-md-0">
-                            <p class="mb-0 text-muted small">Versão 2.0 | Desenvolvido por <strong
+                            <p class="mb-0 text-muted small">Versão 2.5 | Desenvolvido por <strong
                                     class="text-secondary">Lenon Yuri</strong></p>
                         </div>
                     </div>
@@ -601,7 +622,8 @@ function getFileVersion($file)
                         aria-label="Close"></button>
                 </div>
                 <div class="modal-body p-4">
-                    <p class="text-muted">Gerencie facilmente os conteúdos exibidos na TV do SENAI.</p>
+                    <p class="text-muted">Gerencie facilmente os conteúdos e a inteligência artificial exibidos na TV do
+                        SENAI.</p>
                     <div class="accordion mt-3" id="helpAccordion">
                         <div class="accordion-item border-0 mb-2 shadow-sm rounded">
                             <h2 class="accordion-header">
@@ -614,9 +636,27 @@ function getFileVersion($file)
                                 data-bs-parent="#helpAccordion">
                                 <div class="accordion-body text-muted">
                                     <p class="mb-1">Arraste seus arquivos para a zona de drag-and-drop ou selecione
-                                        manualmente.</p>
+                                        manualmente através do botão.</p>
                                     <p class="mb-0"><strong>Formatos aceitos:</strong> JPG, PNG, GIF, MP4 e WEBM de até
-                                        30MB.</p>
+                                        500MB.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="accordion-item border-0 mb-2 shadow-sm rounded">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed rounded" type="button"
+                                    data-bs-toggle="collapse" data-bs-target="#aiHelp">
+                                    <i class="fas fa-wand-magic-sparkles me-2 text-primary"></i>Como funciona a
+                                    Inteligência Artificial?
+                                </button>
+                            </h2>
+                            <div id="aiHelp" class="accordion-collapse collapse" data-bs-parent="#helpAccordion">
+                                <div class="accordion-body text-muted">
+                                    <p class="mb-1">O botão <strong>Gerar Dica com IA</strong> aciona o modelo Gemini da
+                                        Google para produzir cards de conhecimento industrial, segurança e automação.
+                                    </p>
+                                    <p class="mb-0">Esses cards entram automaticamente na grade da TV sem necessidade de
+                                        upload de arquivos.</p>
                                 </div>
                             </div>
                         </div>
@@ -631,7 +671,8 @@ function getFileVersion($file)
                                 data-bs-parent="#helpAccordion">
                                 <div class="accordion-body text-muted">
                                     <p class="mb-0">Configure os segundos de transição individualmente para imagens.
-                                        Vídeos são reproduzidos automaticamente até o final.</p>
+                                        Vídeos são reproduzidos automaticamente até o final antes da próxima transição.
+                                    </p>
                                 </div>
                             </div>
                         </div>
@@ -644,16 +685,70 @@ function getFileVersion($file)
         </div>
     </div>
 
+    <!-- Modal de Pré-visualização da Dica da IA -->
+    <div class="modal fade" id="aiTipModal" tabindex="-1" aria-labelledby="aiTipModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-dark text-white border-0 py-3">
+                    <h5 class="modal-title fw-bold" id="aiTipModalLabel">
+                        <i class="fas fa-robot text-primary me-2"></i>Dica do Dia Gerada com IA
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="alert alert-info border-0 mb-3 small d-flex align-items-center">
+                        <i class="fas fa-info-circle me-2 fs-5"></i>
+                        <span>Esta pílula informativa foi gerada via Gemini e já está ativa no carrossel do
+                            Totem.</span>
+                    </div>
+
+                    <!-- Card com o mesmo padrão visual e contraste da TV -->
+                    <div class="card border-0 text-white rounded-3 shadow"
+                        style="background: linear-gradient(135deg, #090d16 0%, #031529 100%);">
+                        <div class="card-body p-4">
+                            <div class="d-flex gap-2 mb-3">
+                                <span class="badge"
+                                    style="background: linear-gradient(135deg, #045cac 0%, #00a1e4 100%); font-size: 0.7rem;">
+                                    <i class="fas fa-bolt me-1"></i> DROPS DA INDÚSTRIA
+                                </span>
+                                <span class="badge bg-secondary" id="modal-ai-category" style="font-size: 0.7rem;">
+                                    SENAI Conhecimento
+                                </span>
+                            </div>
+                            <h5 class="card-title fw-bold mb-2 text-white" id="modal-ai-title">Título da Dica</h5>
+                            <p class="card-text text-light opacity-75 small mb-3" id="modal-ai-summary">Resumo
+                                informativo para leitura rápida na TV.</p>
+                            <div
+                                class="border-top border-secondary pt-2 d-flex justify-content-between align-items-center">
+                                <span class="badge bg-dark text-light" style="font-size: 0.65rem;">Google AI
+                                    Studio</span>
+                                <span class="text-white-50" style="font-size: 0.7rem;"><i
+                                        class="far fa-clock me-1"></i>Ao vivo na TV</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-3 bg-light">
+                    <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Fechar</button>
+                    <button type="button" class="btn btn-primary px-4" id="modal-btn-regenerate">
+                        <i class="fas fa-rotate me-2"></i>Gerar Outra Dica
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- ============================================================ -->
     <!-- SCRIPTS COM VERSIONAMENTO AUTOMÁTICO (ANTI-CACHE)            -->
     <!-- ============================================================ -->
-    <!-- Bootstrap -->
+    <!-- Bootstrap Bundle com Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
     <!-- Config.js (na raiz do projeto) -->
     <script src="../config.js?v=<?= getFileVersion('../config.js') ?>"></script>
 
-    <!-- Drops Engine (notícias) -->
+    <!-- Drops Engine (notícias e suporte a IA) -->
     <script src="../user/js/drops.js?v=<?= getFileVersion('../user/js/drops.js') ?>"></script>
 
     <!-- Admin Scripts -->

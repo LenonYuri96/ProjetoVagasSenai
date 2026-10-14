@@ -1,27 +1,140 @@
 /**
  * ============================================================================
- * DropsEngine - Motor de Agregação de Conteúdo e Notícias em Tempo Real
+ * DropsEngine - Motor Unificado de Conteúdo, Notícias em Tempo Real & IA
  * SENAI Uberaba & FIEMG Regional Vale do Rio Grande
  *
- * Funcionalidades:
- * 1. Conexão primária com backend PHP de alta performance (get_drops.php).
- * 2. Motor secundário com agregação RSS direta e proxies CORS inteligentes.
- * 3. Filtro semântico contextual (SENAI, FIEMG, Indústria, Inovação, Uberaba).
- * 4. Normalização dinâmica de URLs com suporte a getLocalUrl.
- * 5. Proxy de mídias para evitar bloqueios 403 de CDNs de redes sociais.
- * 6. Distribuição intercalada por categorias para dinamizar a exibição.
- * 7. Fallbacks ricos e resilientes para operação contínua 100% offline.
+ * Arquitetura e Políticas de Exibição:
+ * 1. Taxonomia Restrita às 4 Categorias Oficiais:
+ *    - SENAI UBERABA   (Unidade local, cursos técnicos e comunidade regional)
+ *    - SENAI MG        (Capacitação estadual, polos de inovação em Minas)
+ *    - FIEMG           (Indústria, economia regional, eventos empresariais)
+ *    - SENAI NACIONAL  (Tendências de Indústria 4.0, CNI e tecnologia)
+ *
+ * 2. Segurança Institucional e Filtro Antipolítica:
+ *    - Descarte de qualquer menção a eleições, partidos, mandatos,
+ *      candidaturas, disputas partidárias ou escândalos governamentais.
+ *
+ * 3. Validade Temporal Estrita (Janela de 60 Dias):
+ *    - Elimina sumariamente conteúdos publicados há mais de 60 dias da data atual
+ *      ou postagens com carimbo no futuro (> 24h).
+ *
+ * 4. Pílula de Conhecimento Inteligente (Google Gemini via backend PHP):
+ *    - Injeção prioritária de cards dinâmicos gerados por IA com cache de memória.
+ *
+ * 5. Resiliência Total (Operação 100% Offline):
+ *    - Base de contingência rica cobrindo as 4 categorias se a rede oscilar.
  * ============================================================================
  */
 
 class DropsEngine {
   constructor() {
+    // ===== ESTADO DO MOTOR =====
     this.cachedDrops = [];
+    this.cachedAiDrop = null;
+    this.lastAiFetchTime = 0;
     this.isFetching = false;
     this.lastFetchTime = 0;
-    this.CACHE_TTL = 5 * 60 * 1000; // 5 minutos de cache em memória
 
-    // ===== PALAVRAS-CHAVE PARA FILTRAGEM SEMÂNTICA =====
+    // ===== CONSTANTES DE TEMPORIZAÇÃO (CACHE & JANELAS) =====
+    this.CACHE_TTL = 5 * 60 * 1000; // 5 minutos de cache em memória para notícias
+    this.AI_CACHE_TTL = 30 * 60 * 1000; // 30 minutos de cache em memória para a IA
+    this.REQUEST_TIMEOUT_BACKEND = 4500; // Timeout máximo para o backend PHP (ms)
+    this.REQUEST_TIMEOUT_EXTERNAL = 3500; // Timeout máximo para feeds externos (ms)
+
+    // ===== JANELA MÁXIMA DE IDADE: 60 DIAS =====
+    this.MAX_NEWS_AGE_MS = 60 * 24 * 60 * 60 * 1000; // 5.184.000.000 ms
+
+    // ===== ENUMERAÇÃO OFICIAL DAS 4 CATEGORIAS =====
+    this.CATEGORIES = Object.freeze({
+      UBERABA: "SENAI UBERABA",
+      MG: "SENAI MG",
+      FIEMG: "FIEMG",
+      NACIONAL: "SENAI NACIONAL",
+    });
+
+    // ===== LISTA NEGRA EXTENSA: POLÍTICA, ELEIÇÕES E PARTIDOS =====
+    this.politicalBlacklist = [
+      "eleicao",
+      "eleicoes",
+      "eleitoral",
+      "eleitorais",
+      "candidato",
+      "candidata",
+      "candidatos",
+      "candidatas",
+      "candidatura",
+      "candidaturas",
+      "campanha eleitoral",
+      "propaganda eleitoral",
+      "pesquisa eleitoral",
+      "urna eletronica",
+      "urna",
+      "urnas",
+      "tse",
+      "tre-mg",
+      "tribunal superior eleitoral",
+      "comicio",
+      "comicios",
+      "partido politico",
+      "partidos politicos",
+      "partidario",
+      "partidaria",
+      "partidarios",
+      "reeleicao",
+      "reeleito",
+      "reeleita",
+      "deputado",
+      "deputada",
+      "deputados",
+      "deputadas",
+      "deputado estadual",
+      "deputado federal",
+      "senador",
+      "senadora",
+      "senadores",
+      "senado federal",
+      "vereador",
+      "vereadores",
+      "vereador municipal",
+      "prefeito",
+      "prefeita",
+      "prefeitos",
+      "prefeitas",
+      "coligacao",
+      "coligacoes",
+      "planalto",
+      "palacio do planalto",
+      "congresso nacional",
+      "camara dos deputados",
+      "stf",
+      "supremo tribunal federal",
+      "cpi",
+      "polarizacao",
+      "governador",
+      "governadora",
+      "governadores",
+      "governanca politica",
+      "cassacao",
+      "cassado",
+      "cassada",
+      "parlamentar",
+      "parlamentares",
+      "bancada",
+      "bancada ruralista",
+      "bancada evangélica",
+      "pleito",
+      "voto nulo",
+      "voto branco",
+      "justica eleitoral",
+      "marqueteiro",
+      "horario politico",
+      "santinho",
+      "impugnacao",
+      "mensalao",
+      "lava jato",
+    ];
+
+    // ===== LISTA BRANCA POSITIVA: TERMOS DA INDÚSTRIA & FORMAÇÃO =====
     this.filterKeywords = [
       "fiemg",
       "senai",
@@ -32,22 +145,47 @@ class DropsEngine {
       "industrial",
       "minas gerais",
       "capacitacao",
+      "capacitacoes",
       "educacao profissional",
       "curso tecnico",
+      "cursos tecnicos",
+      "formacao tecnica",
       "tecnologia",
       "inovacao",
       "automacao",
       "robotica",
       "eletromecanica",
+      "eletrotecnica",
+      "mecanica",
+      "soldagem",
+      "caldeiraria",
+      "metrologia",
+      "usinagem",
+      "inteligencia artificial",
+      "manufatura",
+      "manufatura avancada",
+      "manufatura aditiva",
+      "impressao 3d",
+      "gemeo digital",
+      "gemeos digitais",
       "uberaba",
       "vale do rio grande",
       "triangulo mineiro",
       "competitividade",
-      "manufatura",
       "mercado de trabalho",
+      "vagas de estagio",
+      "jovem aprendiz",
+      "aprendizagem industrial",
+      "eficiencia energetica",
+      "seguranca do trabalho",
+      "nr-12",
+      "nr-10",
+      "manutencao preditiva",
+      "iot",
+      "internet das coisas",
     ];
 
-    // ===== LISTA NEGRA DE URLS E CONTEÚDOS IRRELEVANTES =====
+    // ===== LISTA NEGRA ADMINISTRATIVA E PÁGINAS DO SISTEMA =====
     this.urlBlacklist = [
       "pessoas.fiemg.com.br",
       "intranet.fiemg.com.br",
@@ -58,6 +196,8 @@ class DropsEngine {
       "/oportunidades",
       "solucoes.fiemg",
       "trabalhe-conosco",
+      "webmail",
+      "transparencia",
     ];
 
     this.titleBlacklist = [
@@ -73,58 +213,68 @@ class DropsEngine {
       "login",
       "pagina inicial",
       "erro 404",
+      "acesso negado",
+      "pagina nao encontrada",
+      "termos de uso",
+      "politica de privacidade",
     ];
 
-    // ===== CANAIS E FEEDS DIRETOS DE NOTÍCIAS =====
+    // ===== CANAIS E FEEDS DIRETOS COM EXCLUSÕES NATIVAS =====
     this.feeds = [
       {
         url: "https://g1.globo.com/mg/triangulo-mineiro/rss2.xml",
         type: "news",
-        subtype: "SENAI Uberaba",
-        defaultSource: "G1 Triângulo Mineiro",
+        subtype: this.CATEGORIES.UBERABA,
+        defaultSource: "G1 Triângulo",
       },
       {
-        url: "https://g1.globo.com/dynamo/economia/rss2.xml",
+        url: 'https://news.google.com/rss/search?q=("SENAI+Uberaba")+when:60d+-eleicao+-politica+-candidato+-partido&hl=pt-BR&gl=BR&ceid=BR:pt-419',
         type: "news",
-        subtype: "G1 Economia",
-        defaultSource: "G1 Economia",
-      },
-      {
-        url: 'https://news.google.com/rss/search?q="SENAI+Uberaba"+OR+"FIEMG+Uberaba"&hl=pt-BR&gl=BR&ceid=BR:pt-419',
-        type: "news",
-        subtype: "SENAI Uberaba",
+        subtype: this.CATEGORIES.UBERABA,
         defaultSource: "Notícias de Uberaba",
       },
       {
-        url: 'https://news.google.com/rss/search?q="FIEMG"+"Vale+do+Rio+Grande"+OR+"FIEMG+Regional"&hl=pt-BR&gl=BR&ceid=BR:pt-419',
+        url: 'https://news.google.com/rss/search?q=("FIEMG"+OR+"FIEMG+Regional"+"Vale+do+Rio+Grande")+when:60d+-eleicao+-politica+-candidato&hl=pt-BR&gl=BR&ceid=BR:pt-419',
         type: "news",
-        subtype: "FIEMG Regional Vale do Rio Grande",
+        subtype: this.CATEGORIES.FIEMG,
         defaultSource: "FIEMG Regional",
       },
       {
-        url: 'https://news.google.com/rss/search?q=site:instagram.com+"senaiuberaba"+OR+"fiemgoficial"&hl=pt-BR&gl=BR&ceid=BR:pt-419',
+        url: 'https://news.google.com/rss/search?q=site:instagram.com+("senaiuberaba"+OR+"fiemgoficial")+when:60d+-eleicao+-politica&hl=pt-BR&gl=BR&ceid=BR:pt-419',
         type: "instagram",
-        subtype: "FIEMG Oficial",
+        subtype: this.CATEGORIES.FIEMG,
         handle: "@fiemgoficial",
         defaultSource: "Instagram Oficial",
       },
       {
-        url: 'https://news.google.com/rss/search?q=site:linkedin.com/company/fiemg+OR+"SENAI+Minas+Gerais"&hl=pt-BR&gl=BR&ceid=BR:pt-419',
-        type: "linkedin",
-        subtype: "LinkedIn FIEMG",
-        handle: "fiemg",
-        defaultSource: "LinkedIn FIEMG",
+        url: 'https://news.google.com/rss/search?q=("SENAI+Minas+Gerais"+OR+"SENAI+MG")+when:60d+-eleicao+-politica&hl=pt-BR&gl=BR&ceid=BR:pt-419',
+        type: "news",
+        subtype: this.CATEGORIES.MG,
+        defaultSource: "SENAI Minas Gerais",
       },
       {
-        url: "https://news.google.com/rss/search?q=site:portaldaindustria.com.br+SENAI&hl=pt-BR&gl=BR&ceid=BR:pt-419",
+        url: "https://news.google.com/rss/search?q=site:linkedin.com/company/fiemg+when:60d+-eleicao+-politica&hl=pt-BR&gl=BR&ceid=BR:pt-419",
+        type: "linkedin",
+        subtype: this.CATEGORIES.MG,
+        handle: "fiemg",
+        defaultSource: "LinkedIn FIEMG/SENAI",
+      },
+      {
+        url: 'https://news.google.com/rss/search?q=("SENAI+Nacional"+OR+site:portaldaindustria.com.br+SENAI)+when:60d+-eleicao+-politica&hl=pt-BR&gl=BR&ceid=BR:pt-419',
         type: "news",
-        subtype: "SENAI Nacional",
+        subtype: this.CATEGORIES.NACIONAL,
         defaultSource: "Portal da Indústria",
       },
     ];
   }
 
-  // ===== RESOLUÇÃO DE URLS LOCAIS E ABSOLUTAS =====
+  // ==========================================================================
+  // MÉTODOS DE SUPORTE E NORMALIZAÇÃO DE DADOS
+  // ==========================================================================
+
+  /**
+   * Resolve caminhos de mídia estáticos, dinâmicos ou de CDNs externas
+   */
   resolveAsset(path) {
     if (!path) return null;
     if (/^(https?:|\/\/|data:)/i.test(path)) {
@@ -133,10 +283,16 @@ class DropsEngine {
     if (typeof window.getLocalUrl === "function") {
       return window.getLocalUrl(path);
     }
-    return `/${path.replace(/^\/+/, "")}`;
+    const cleanPath = path.replace(/^\/+/, "");
+    if (window.location.pathname.includes("/user/")) {
+      return `../${cleanPath}`;
+    }
+    return `./${cleanPath}`;
   }
 
-  // ===== PROXY ANTI-BLOQUEIO DE MÍDIAS (CORS/HOTLINK) =====
+  /**
+   * Contorna bloqueios 403 de hotlink de imagens externas via CDN segura
+   */
   proxyMediaUrl(url) {
     if (!url) return null;
     if (
@@ -150,7 +306,254 @@ class DropsEngine {
     return url;
   }
 
-  // ===== MÉTODO PRINCIPAL DE CAPTURA E PROCESSAMENTO =====
+  /**
+   * Remove acentuação e caracteres diacríticos para busca semântica fiel
+   */
+  stripAccents(text) {
+    if (!text) return "";
+    return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  }
+
+  /**
+   * Normaliza textos inteiros para minúsculas sem pontuações especiais
+   */
+  normalizeText(text) {
+    if (!text) return "";
+    return this.stripAccents(String(text).toLowerCase()).trim();
+  }
+
+  /**
+   * Decodifica entidades HTML presentes em feeds RSS (ex: &amp;, &#39;, &quot;)
+   */
+  decodeEntities(str) {
+    if (!str) return "";
+    return str
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&nbsp;/g, " ");
+  }
+
+  /**
+   * Mapeamento estrito e sem ambiguidades para as 4 categorias oficiais
+   */
+  normalizeCategory(cat, textContext = "") {
+    const raw = (cat + " " + textContext).toUpperCase();
+    const clean = this.stripAccents(raw);
+
+    if (clean.includes("UBERABA")) {
+      return this.CATEGORIES.UBERABA;
+    }
+    if (clean.includes("FIEMG")) {
+      return this.CATEGORIES.FIEMG;
+    }
+    if (
+      clean.includes("NACIONAL") ||
+      clean.includes("BRASIL") ||
+      clean.includes("CNI")
+    ) {
+      return this.CATEGORIES.NACIONAL;
+    }
+    if (
+      clean.includes("MINAS GERAIS") ||
+      clean.includes("SENAI MG") ||
+      clean.includes("MG")
+    ) {
+      return this.CATEGORIES.MG;
+    }
+    return this.CATEGORIES.UBERABA;
+  }
+
+  /**
+   * Valida se uma data está estritamente dentro da janela de 60 dias
+   */
+  isWithinDateLimit(pubDateStr) {
+    if (!pubDateStr) return false;
+    const now = Date.now();
+
+    // 1. Caso a data esteja em formato brasileiro DD/MM/AAAA
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(pubDateStr.trim())) {
+      const parts = pubDateStr.trim().split("/");
+      const dateObj = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00`);
+      if (!isNaN(dateObj.getTime())) {
+        const diffMs = now - dateObj.getTime();
+        return diffMs <= this.MAX_NEWS_AGE_MS && diffMs >= -86400000;
+      }
+    }
+
+    // 2. Caso a data esteja em formato ISO / RFC 822 de feeds RSS
+    const parsed = new Date(pubDateStr);
+    if (!isNaN(parsed.getTime())) {
+      const diffMs = now - parsed.getTime();
+      return diffMs <= this.MAX_NEWS_AGE_MS && diffMs >= -86400000;
+    }
+
+    // Se for string simbólica ("Hoje", "Recente") considera recente
+    if (pubDateStr === "Hoje" || pubDateStr === "Recente") {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Formata a data para padrão brasileiro de exibição (DD/MM/AAAA)
+   */
+  formatDateToBR(dateInput) {
+    if (!dateInput) return "Hoje";
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateInput)) return dateInput;
+
+    try {
+      const d = new Date(dateInput);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleDateString("pt-BR", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        });
+      }
+    } catch (e) {}
+
+    return "Hoje";
+  }
+
+  // ==========================================================================
+  // INTEGRAÇÃO COM INTELIGÊNCIA ARTIFICIAL (GEMINI STUDIO VIA PHP)
+  // ==========================================================================
+
+  /**
+   * Busca ou recupera em cache a Pílula de Conhecimento da IA
+   */
+  async fetchAiDrop() {
+    const now = Date.now();
+    if (this.cachedAiDrop && now - this.lastAiFetchTime < this.AI_CACHE_TTL) {
+      return this.cachedAiDrop;
+    }
+
+    try {
+      const endpoint = this.resolveAsset(
+        "admin/php/gemini.php?action=daily_tip",
+      );
+      const controller = new AbortController();
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        this.REQUEST_TIMEOUT_BACKEND,
+      );
+
+      const response = await fetch(endpoint, {
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`API de IA respondeu com status ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data && data.title && data.summary) {
+        const titleFormatted = data.title.startsWith("✨")
+          ? data.title
+          : `✨ ${data.title}`;
+
+        const validCat = this.normalizeCategory(
+          data.category || this.CATEGORIES.UBERABA,
+        );
+
+        this.cachedAiDrop = {
+          type: "news_drop",
+          isAi: true,
+          title: titleFormatted,
+          summary: data.summary,
+          image: null,
+          video: null,
+          isVideo: false,
+          hasVideo: false,
+          isInstagram: false,
+          isLinkedIn: false,
+          category: validCat,
+          pubDate: "Pílula do Dia • IA",
+          source: "SENAI IA Studio",
+          link: "#",
+        };
+
+        this.lastAiFetchTime = now;
+        return this.cachedAiDrop;
+      }
+
+      return this.getFallbackAiDrop();
+    } catch (e) {
+      console.warn(
+        "[DropsEngine] IA indisponível, ativando contingência:",
+        e.message,
+      );
+      return this.getFallbackAiDrop();
+    }
+  }
+
+  /**
+   * Pílulas industriais inteligentes para contingência offline da IA
+   */
+  getFallbackAiDrop() {
+    const aiPool = [
+      {
+        title: "✨ Manutenção Preditiva e IoT",
+        summary:
+          "Sensores térmicos e de vibração conectados à nuvem antecipam paradas em motores industriais antes que ocorra a falha mecânica.",
+        category: this.CATEGORIES.UBERABA,
+      },
+      {
+        title: "✨ Eficiência Energética na Indústria",
+        summary:
+          "Algoritmos inteligentes ajustam em tempo real a demanda elétrica de compressores e fornos, reduzindo custos em até 22%.",
+        category: this.CATEGORIES.MG,
+      },
+      {
+        title: "✨ Gêmeos Digitais na Manufatura",
+        summary:
+          "A simulação virtual completa da linha de produção permite testar novos fluxos fabris sem interromper as atividades físicas.",
+        category: this.CATEGORIES.FIEMG,
+      },
+      {
+        title: "✨ Visão Computacional e NR-12",
+        summary:
+          "Câmeras inteligentes detectam o uso correto de EPIs e monitoram zonas de perigo em tempo real nas células de usinagem.",
+        category: this.CATEGORIES.NACIONAL,
+      },
+    ];
+
+    const chosen =
+      aiPool[Math.floor(Date.now() / (1000 * 60 * 60)) % aiPool.length];
+
+    return {
+      type: "news_drop",
+      isAi: true,
+      title: chosen.title,
+      summary: chosen.summary,
+      image: null,
+      video: null,
+      isVideo: false,
+      hasVideo: false,
+      isInstagram: false,
+      isLinkedIn: false,
+      category: chosen.category,
+      pubDate: "Pílula do Dia • IA",
+      source: "SENAI IA Studio",
+      link: "#",
+    };
+  }
+
+  // ==========================================================================
+  // ESTRATÉGIAS DE CAPTURA E INGESTÃO DE NOTÍCIAS
+  // ==========================================================================
+
+  /**
+   * Orquestrador principal: busca fontes, filtra dados e intercala slides
+   */
   async fetchAndProcessDrops() {
     const now = Date.now();
     if (
@@ -169,39 +572,58 @@ class DropsEngine {
     this.isFetching = true;
 
     try {
-      // 1. Tenta buscar primeiro via endpoint PHP local de alta velocidade
-      const dropsFromBackend = await this.fetchFromBackend();
-      if (dropsFromBackend && dropsFromBackend.length > 0) {
-        this.cachedDrops = this.distributeDrops(dropsFromBackend);
-        this.lastFetchTime = Date.now();
-        this.isFetching = false;
-        return this.cachedDrops;
+      // 1. Dispara em paralelo a chamada da IA
+      const aiDropPromise = this.fetchAiDrop();
+
+      // 2. Consulta primária via Backend PHP (com cache rápido)
+      let drops = await this.fetchFromBackend();
+
+      // 3. Contingência secundária via Feeds RSS diretos (Client-side)
+      if (!drops || drops.length === 0) {
+        drops = await this.fetchDirectFeeds();
       }
 
-      // 2. Se o backend não responder, executa a busca direta nos feeds externos
-      const dropsFromFeeds = await this.fetchDirectFeeds();
-      if (dropsFromFeeds && dropsFromFeeds.length > 0) {
-        this.cachedDrops = this.distributeDrops(dropsFromFeeds);
-        this.lastFetchTime = Date.now();
-        this.isFetching = false;
-        return this.cachedDrops;
+      // 4. Contingência terciária: Base estática offline
+      if (!drops || drops.length === 0) {
+        drops = this.getFallbackDrops();
       }
 
-      throw new Error("Nenhum drop retornado de fontes ativas.");
-    } catch (error) {
-      console.warn("[DropsEngine] Ativando contingência:", error.message);
+      // 5. Aguarda IA e faz a distribuição balanceada
+      const aiCard = await aiDropPromise;
+      let finalDrops = this.distributeDrops(drops);
+
+      if (aiCard) {
+        finalDrops.unshift(aiCard);
+      }
+
+      this.cachedDrops = finalDrops;
+      this.lastFetchTime = Date.now();
       this.isFetching = false;
-      this.cachedDrops = this.getFallbackDrops();
+      return this.cachedDrops;
+    } catch (error) {
+      console.warn(
+        "[DropsEngine] Erro geral de ingestão. Ativando contingência:",
+        error.message,
+      );
+      this.isFetching = false;
+      const baseDrops = this.getFallbackDrops();
+      const fallbackAi = this.getFallbackAiDrop();
+      this.cachedDrops = [fallbackAi, ...baseDrops];
       return this.cachedDrops;
     }
   }
 
-  // ===== ESTRATÉGIA 1: BUSCA VIA BACKEND PHP =====
+  /**
+   * Estratégia 1: Conexão direta com get_drops.php
+   */
   async fetchFromBackend() {
     try {
       const endpoint = this.resolveAsset("admin/php/get_drops.php");
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        this.REQUEST_TIMEOUT_BACKEND,
+      );
 
       const response = await fetch(endpoint, {
         cache: "no-store",
@@ -213,30 +635,37 @@ class DropsEngine {
       if (!response.ok) return null;
 
       const rawData = await response.json();
-      if (Array.isArray(rawData) && rawData.length > 0) {
-        return rawData.map((item) => ({
-          type: "news_drop",
-          title: item.title,
-          summary: item.summary,
-          image: item.image ? this.resolveAsset(item.image) : null,
-          video: item.video ? this.resolveAsset(item.video) : null,
-          isVideo: !!item.video,
-          hasVideo: !!item.video,
-          isInstagram: !!item.isInstagram,
-          isLinkedIn: !!item.isLinkedIn,
-          category: item.category || "SENAI Uberaba",
-          pubDate: item.pubDate || "Hoje",
-          source: item.source || "SENAI Notícias",
-          link: item.link || "#",
-        }));
-      }
-      return null;
+      if (!Array.isArray(rawData) || rawData.length === 0) return null;
+
+      // Validação estrita de idade (<= 60 dias)
+      const validItems = rawData.filter((item) => {
+        return this.isWithinDateLimit(item.pubDate);
+      });
+
+      return validItems.map((item) => ({
+        type: "news_drop",
+        isAi: false,
+        title: item.title,
+        summary: item.summary,
+        image: item.image ? this.resolveAsset(item.image) : null,
+        video: item.video ? this.resolveAsset(item.video) : null,
+        isVideo: !!item.video,
+        hasVideo: !!item.video,
+        isInstagram: !!item.isInstagram,
+        isLinkedIn: !!item.isLinkedIn,
+        category: this.normalizeCategory(item.category, item.title),
+        pubDate: item.pubDate || "Hoje",
+        source: item.source || "SENAI Notícias",
+        link: item.link || "#",
+      }));
     } catch (err) {
       return null;
     }
   }
 
-  // ===== ESTRATÉGIA 2: BUSCA DIRETA EM FEEDS RSS (CLIENT-SIDE) =====
+  /**
+   * Estratégia 2: Feeds diretos via RSS2JSON caso o backend PHP esteja inacessível
+   */
   async fetchDirectFeeds() {
     let allRawItems = [];
 
@@ -244,14 +673,21 @@ class DropsEngine {
       try {
         const converterUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feedConfig.url)}`;
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3500);
+        const timeoutId = setTimeout(
+          () => controller.abort(),
+          this.REQUEST_TIMEOUT_EXTERNAL,
+        );
 
         const res = await fetch(converterUrl, { signal: controller.signal });
         clearTimeout(timeoutId);
 
         if (res.ok) {
           const data = await res.json();
-          if (data.status === "ok" && data.items && data.items.length > 0) {
+          if (
+            data.status === "ok" &&
+            Array.isArray(data.items) &&
+            data.items.length > 0
+          ) {
             return data.items.map((item) => ({
               ...item,
               feedMetadata: feedConfig,
@@ -266,7 +702,7 @@ class DropsEngine {
 
     const results = await Promise.all(fetchPromises);
     results.forEach((items) => {
-      if (items && Array.isArray(items)) {
+      if (Array.isArray(items)) {
         allRawItems = allRawItems.concat(items);
       }
     });
@@ -274,26 +710,14 @@ class DropsEngine {
     return this.applySemanticFilter(allRawItems);
   }
 
-  // ===== FILTRAGEM, HIGIENIZAÇÃO E CATEGORIZAÇÃO =====
+  // ==========================================================================
+  // FILTRAGEM SEMÂNTICA, ANTIPOLÍTICA E SANITIZAÇÃO
+  // ==========================================================================
+
+  /**
+   * Processa itens brutos eliminando notícias velhas, políticas e sem relevância
+   */
   applySemanticFilter(items) {
-    const normalize = (str) =>
-      str
-        ? str
-            .toLowerCase()
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
-        : "";
-
-    const decodeEntities = (str) => {
-      if (!str) return "";
-      return str
-        .replace(/&amp;/g, "&")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'");
-    };
-
     const seenTitles = new Set();
     const validDrops = [];
 
@@ -302,13 +726,20 @@ class DropsEngine {
       const isInstagram = metadata.type === "instagram";
       const isLinkedIn = metadata.type === "linkedin";
 
-      let titleClean = item.title ? decodeEntities(item.title.trim()) : "";
+      // 1. VALIDAÇÃO ESTREITA DE IDADE (<= 60 DIAS)
+      if (!this.isWithinDateLimit(item.pubDate)) {
+        return; // Descarta notícia velha
+      }
+      const formattedDate = this.formatDateToBR(item.pubDate);
+
+      // 2. SANITIZAÇÃO DO TÍTULO
+      let titleClean = item.title ? this.decodeEntities(item.title.trim()) : "";
       const itemLink = item.link || "";
 
-      // Limpa sufixos de jornais nos títulos
-      titleClean = titleClean.replace(/\s*-\s*[^-\n]+$/, "").trim();
+      // Remove sufixos de jornais (ex: "Título - G1", "Título | Notícias")
+      titleClean = titleClean.replace(/\s*[-|]\s*[^-\n|]+$/, "").trim();
 
-      // Validação contra listas negras
+      // 3. LISTAS NEGRAS ADMINISTRATIVAS
       if (!isInstagram && !isLinkedIn) {
         if (
           this.urlBlacklist.some((bad) => itemLink.toLowerCase().includes(bad))
@@ -323,7 +754,7 @@ class DropsEngine {
         if (titleClean.length < 12) return;
       }
 
-      const textToAnalyze = normalize(
+      const textToAnalyze = this.normalizeText(
         titleClean +
           " " +
           (item.description || "") +
@@ -331,53 +762,34 @@ class DropsEngine {
           (item.content || ""),
       );
 
+      // 4. BLOQUEIO DE POLÍTICA, ELEIÇÕES E PARTIDOS
+      const isPolitical = this.politicalBlacklist.some((term) =>
+        textToAnalyze.includes(term),
+      );
+      if (isPolitical) {
+        return; // Descarta imediatamente qualquer conteúdo político
+      }
+
+      // 5. FILTRO DE RELEVÂNCIA (PARA FEEDS ABERTOS COMO G1)
       const isRelevant =
         isInstagram ||
         isLinkedIn ||
         this.filterKeywords.some((kw) => textToAnalyze.includes(kw));
 
-      if (!isRelevant) return;
+      if (!isRelevant) {
+        return; // Descarta matérias que não possuem relação com o SENAI ou Indústria
+      }
 
-      // Deduplicação
-      const titleHash = normalize(titleClean.substring(0, 40));
+      // 6. DEDUPLICAÇÃO
+      const titleHash = this.normalizeText(titleClean.substring(0, 45));
       if (seenTitles.has(titleHash)) return;
       seenTitles.add(titleHash);
 
-      // Definição de Categoria e Fonte
-      let category = metadata.subtype || "Geral";
-      let source = metadata.defaultSource || item.author || "SENAI";
+      // 7. ENQUADRAMENTO ESTRITO NAS 4 CATEGORIAS
+      const category = this.normalizeCategory(metadata.subtype, textToAnalyze);
+      const source = metadata.defaultSource || item.author || "SENAI";
 
-      if (isInstagram) {
-        category = metadata.subtype || "FIEMG Oficial";
-        source = metadata.handle ? `Instagram ${metadata.handle}` : "Instagram";
-      } else if (isLinkedIn) {
-        category = "LinkedIn FIEMG";
-        source = "LinkedIn FIEMG";
-      } else {
-        const hasUberaba =
-          textToAnalyze.includes("uberaba") ||
-          textToAnalyze.includes("vale do rio grande");
-        const hasSenai = textToAnalyze.includes("senai");
-        const hasFiemg = textToAnalyze.includes("fiemg");
-
-        if (hasUberaba) {
-          if (hasSenai) {
-            category = "SENAI Uberaba";
-            source = "SENAI Regional";
-          } else if (hasFiemg) {
-            category = "FIEMG Regional Vale do Rio Grande";
-            source = "FIEMG Regional";
-          }
-        } else if (hasSenai || itemLink.includes("portaldaindustria.com.br")) {
-          category = "SENAI Nacional";
-          source = "Portal da Indústria";
-        } else if (hasFiemg || itemLink.includes("fiemg.com.br")) {
-          category = "FIEMG Oficial";
-          source = "Portal FIEMG";
-        }
-      }
-
-      // Extração de Imagens
+      // 8. EXTRAÇÃO E TRATAMENTO DE IMAGENS
       let rawImage = null;
       if (
         item.enclosure &&
@@ -400,8 +812,10 @@ class DropsEngine {
         }
       }
 
-      // Higienização do Resumo
-      let cleanSummary = decodeEntities(item.description || "")
+      // 9. HIGIENIZAÇÃO DO RESUMO PARA A TV
+      let cleanSummary = this.decodeEntities(
+        item.description || item.content || "",
+      )
         .replace(/<[^>]*>/g, "")
         .replace(/#\w+/g, "")
         .replace(/\s+/g, " ")
@@ -409,28 +823,14 @@ class DropsEngine {
 
       if (!cleanSummary || cleanSummary.length < 15) {
         cleanSummary =
-          "Acompanhe as principais atualizações, projetos e novidades no ecossistema da indústria mineira.";
+          "Acompanhe as principais atualizações e projetos no ecossistema da indústria mineira e nacional.";
       } else if (cleanSummary.length > 220) {
         cleanSummary = cleanSummary.substring(0, 217) + "...";
       }
 
-      // Formatação de data
-      let formattedDate = "Hoje";
-      if (item.pubDate) {
-        try {
-          const d = new Date(item.pubDate);
-          if (!isNaN(d.getTime())) {
-            formattedDate = d.toLocaleDateString("pt-BR", {
-              day: "2-digit",
-              month: "2-digit",
-              year: "numeric",
-            });
-          }
-        } catch (e) {}
-      }
-
       validDrops.push({
         type: "news_drop",
+        isAi: false,
         title: titleClean,
         summary: cleanSummary,
         image: rawImage ? this.resolveAsset(rawImage) : null,
@@ -449,48 +849,68 @@ class DropsEngine {
     return validDrops;
   }
 
-  // ===== DISTRIBUIÇÃO INTERCALADA (ROUND-ROBIN) =====
+  // ==========================================================================
+  // DISTRIBUIÇÃO BALANCEADA ENTRE AS 4 CATEGORIAS
+  // ==========================================================================
+
+  /**
+   * Distribuição equilibrada em rodízio (Round-Robin) entre as 4 categorias
+   */
   distributeDrops(items) {
     if (!items || items.length === 0) return this.getFallbackDrops();
 
     const buckets = {
-      "SENAI Uberaba": [],
-      "FIEMG Regional Vale do Rio Grande": [],
-      "LinkedIn FIEMG": [],
-      "FIEMG Oficial": [],
-      "SENAI Nacional": [],
-      Geral: [],
+      [this.CATEGORIES.UBERABA]: [],
+      [this.CATEGORIES.MG]: [],
+      [this.CATEGORIES.FIEMG]: [],
+      [this.CATEGORIES.NACIONAL]: [],
     };
 
     items.forEach((item) => {
-      const cat = item.category || "Geral";
+      const cat = this.normalizeCategory(item.category);
       if (buckets[cat]) {
         buckets[cat].push(item);
       } else {
-        buckets["Geral"].push(item);
+        buckets[this.CATEGORIES.UBERABA].push(item);
       }
     });
 
     const ordered = [];
-    const maxLen = Math.max(...Object.values(buckets).map((b) => b.length), 0);
+    const maxLen = Math.max(
+      buckets[this.CATEGORIES.UBERABA].length,
+      buckets[this.CATEGORIES.MG].length,
+      buckets[this.CATEGORIES.FIEMG].length,
+      buckets[this.CATEGORIES.NACIONAL].length,
+      0,
+    );
 
     for (let i = 0; i < maxLen; i++) {
-      for (const cat in buckets) {
-        if (buckets[cat] && buckets[cat][i]) {
-          ordered.push(buckets[cat][i]);
+      for (const catKey of Object.values(this.CATEGORIES)) {
+        if (buckets[catKey] && buckets[catKey][i]) {
+          ordered.push(buckets[catKey][i]);
         }
       }
     }
 
+    // Limita o carrossel a 16 drops de notícias para dinamismo ideal na TV
     return ordered.slice(0, 16);
   }
 
-  // ===== BASE DE CONTINGÊNCIA RESILIENTE (100% OFFLINE) =====
+  // ==========================================================================
+  // BASE DE CONTINGÊNCIA RESILIENTE (100% OFFLINE)
+  // ==========================================================================
+
+  /**
+   * Coleção de cards oficiais nas 4 categorias para operação sem conexão à internet
+   */
   getFallbackDrops() {
     const today = new Date().toLocaleDateString("pt-BR");
+
     return [
+      // 1. SENAI UBERABA
       {
         type: "news_drop",
+        isAi: false,
         title:
           "Cursos Técnicos Presenciais no SENAI Uberaba com Foco Industrial",
         summary:
@@ -501,13 +921,70 @@ class DropsEngine {
         hasVideo: false,
         isInstagram: false,
         isLinkedIn: false,
-        category: "SENAI Uberaba",
+        category: this.CATEGORIES.UBERABA,
         pubDate: today,
         source: "SENAI Regional",
         link: "https://www.senaimg.com.br",
       },
       {
         type: "news_drop",
+        isAi: false,
+        title: "Laboratórios de Tecnologia e Robótica Aplicada em Uberaba",
+        summary:
+          "Estrutura moderna conecta os alunos às rotinas reais de programação de CLPs e células robotizadas industriais.",
+        image: null,
+        video: null,
+        isVideo: false,
+        hasVideo: false,
+        isInstagram: false,
+        isLinkedIn: false,
+        category: this.CATEGORIES.UBERABA,
+        pubDate: today,
+        source: "SENAI Uberaba",
+        link: "https://www.senaimg.com.br",
+      },
+
+      // 2. SENAI MG
+      {
+        type: "news_drop",
+        isAi: false,
+        title:
+          "Capacitação Profissional SENAI em Minas Gerais Impulsiona Carreiras",
+        summary:
+          "Cursos e programas de especialização técnica abrem novas oportunidades para a força de trabalho mineira.",
+        image: null,
+        video: null,
+        isVideo: false,
+        hasVideo: false,
+        isInstagram: false,
+        isLinkedIn: false,
+        category: this.CATEGORIES.MG,
+        pubDate: today,
+        source: "SENAI Minas Gerais",
+        link: "https://www.senaimg.com.br",
+      },
+      {
+        type: "news_drop",
+        isAi: false,
+        title: "Inovação e Eficiência Produtiva no Polo Industrial Mineiro",
+        summary:
+          "Consultorias especializadas auxiliam as indústrias de Minas Gerais a otimizar processos e reduzir desperdícios.",
+        image: null,
+        video: null,
+        isVideo: false,
+        hasVideo: false,
+        isInstagram: false,
+        isLinkedIn: false,
+        category: this.CATEGORIES.MG,
+        pubDate: today,
+        source: "SENAI MG",
+        link: "https://www.senaimg.com.br",
+      },
+
+      // 3. FIEMG
+      {
+        type: "news_drop",
+        isAi: false,
         title: "FIEMG Regional Vale do Rio Grande Impulsiona Novos Negócios",
         summary:
           "Encontros de competitividade e desenvolvimento de fornecedores fortalecem o polo industrial do Triângulo Mineiro.",
@@ -517,46 +994,69 @@ class DropsEngine {
         hasVideo: false,
         isInstagram: false,
         isLinkedIn: true,
-        category: "LinkedIn FIEMG",
+        category: this.CATEGORIES.FIEMG,
         pubDate: today,
-        source: "LinkedIn FIEMG",
-        link: "https://www.linkedin.com/company/fiemg/",
+        source: "FIEMG Oficial",
+        link: "https://www.fiemg.com.br",
       },
       {
         type: "news_drop",
-        title: "Inovação e Tecnologia: Indústria 4.0 no Ecossistema Mineiro",
+        isAi: false,
+        title: "Desenvolvimento Sustentável e Competitividade na Indústria",
         summary:
-          "SENAI e FIEMG promovem a modernização das fábricas com consultorias em inteligência artificial e manufatura enxuta.",
+          "A FIEMG assessora empresas na transição energética e na implementação de práticas ESG alinhadas ao mercado global.",
         image: null,
         video: null,
         isVideo: false,
         hasVideo: false,
         isInstagram: true,
         isLinkedIn: false,
-        category: "FIEMG Oficial",
+        category: this.CATEGORIES.FIEMG,
         pubDate: today,
         source: "Instagram @fiemgoficial",
-        link: "https://www.instagram.com/fiemgoficial/",
+        link: "https://www.fiemg.com.br",
       },
+
+      // 4. SENAI NACIONAL
       {
         type: "news_drop",
-        title: "Qualificação Profissional Gratuita para a Indústria Regional",
+        isAi: false,
+        title: "Inovação Tecnológica e Indústria 4.0 no Ecossistema Brasileiro",
         summary:
-          "Programas de capacitação técnica abrem oportunidades para jovens e profissionais que buscam especialização.",
+          "O SENAI Nacional promove a modernização das fábricas com consultorias em manufatura avançada, inteligência artificial e automação.",
         image: null,
         video: null,
         isVideo: false,
         hasVideo: false,
         isInstagram: false,
         isLinkedIn: false,
-        category: "SENAI Nacional",
+        category: this.CATEGORIES.NACIONAL,
         pubDate: today,
         source: "Portal da Indústria",
+        link: "https://www.portaldaindustria.com.br",
+      },
+      {
+        type: "news_drop",
+        isAi: false,
+        title: "Olimpíada do Conhecimento e Excelência Técnica Nacional",
+        summary:
+          "Estudantes de todo o país demonstram habilidades profissionais em competições alinhadas aos mais altos padrões globais.",
+        image: null,
+        video: null,
+        isVideo: false,
+        hasVideo: false,
+        isInstagram: false,
+        isLinkedIn: false,
+        category: this.CATEGORIES.NACIONAL,
+        pubDate: today,
+        source: "CNI / SENAI Nacional",
         link: "https://www.portaldaindustria.com.br",
       },
     ];
   }
 }
 
-// Instância Global Única
+// ============================================================================
+// INSTANCIAÇÃO GLOBAL ÚNICA (SINGLETON PATTERN)
+// ============================================================================
 window.DropsEngineInstance = new DropsEngine();

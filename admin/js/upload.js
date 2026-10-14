@@ -1,5 +1,5 @@
 /**
- * MediaManager - Controlador de Campanhas, Uploads e Drops da Indústria (Painel Administrativo)
+ * MediaManager - Controlador de Campanhas, Uploads e Drops da Indústria com IA (Painel Admin)
  */
 class MediaManager {
   constructor() {
@@ -20,7 +20,6 @@ class MediaManager {
     this.updateUploadedList();
   }
 
-  // Método auxiliar para resolver URLs dinamicamente
   resolveUrl(path) {
     if (typeof window.getLocalUrl === "function") {
       return window.getLocalUrl(path);
@@ -48,12 +47,25 @@ class MediaManager {
       previewContainer: document.querySelector(
         "#display-area .preview-container",
       ),
+      // Elementos do Botão e Modal de IA
+      btnAiTip: document.getElementById("btn-ai-tip"),
+      modalBtnRegenerate: document.getElementById("modal-btn-regenerate"),
+      modalAiCategory: document.getElementById("modal-ai-category"),
+      modalAiTitle: document.getElementById("modal-ai-title"),
+      modalAiSummary: document.getElementById("modal-ai-summary"),
     };
   }
 
   setupEventListeners() {
-    const { dropZone, fileInput, uploadButton, refreshBtn, searchInput } =
-      this.elements;
+    const {
+      dropZone,
+      fileInput,
+      uploadButton,
+      refreshBtn,
+      searchInput,
+      btnAiTip,
+      modalBtnRegenerate,
+    } = this.elements;
 
     if (dropZone && fileInput) {
       dropZone.addEventListener("click", () => fileInput.click());
@@ -70,31 +82,110 @@ class MediaManager {
       refreshBtn.addEventListener("click", () => this.updateUploadedList());
     if (searchInput)
       searchInput.addEventListener("input", (e) => this.handleSearch(e));
+
+    // Listeners do Botão de IA
+    if (btnAiTip) {
+      btnAiTip.addEventListener("click", () => this.generateAiTip(true));
+    }
+    if (modalBtnRegenerate) {
+      modalBtnRegenerate.addEventListener("click", () =>
+        this.generateAiTip(true),
+      );
+    }
   }
 
   /**
-   * Consulta o back-end para carregar as mídias e mescla com notícias RSS
+   * Aciona a Inteligência Artificial (Google Gemini) para gerar Dica da Indústria
+   */
+  async generateAiTip(force = true) {
+    const {
+      btnAiTip,
+      modalBtnRegenerate,
+      modalAiCategory,
+      modalAiTitle,
+      modalAiSummary,
+    } = this.elements;
+
+    // Coloca os botões em estado de carregamento
+    const originalTextBtn = btnAiTip ? btnAiTip.innerHTML : "";
+    const originalTextModal = modalBtnRegenerate
+      ? modalBtnRegenerate.innerHTML
+      : "";
+
+    if (btnAiTip) {
+      btnAiTip.disabled = true;
+      btnAiTip.innerHTML =
+        '<i class="fas fa-spinner fa-spin me-2"></i>Gerando com Gemini IA...';
+    }
+    if (modalBtnRegenerate) {
+      modalBtnRegenerate.disabled = true;
+      modalBtnRegenerate.innerHTML =
+        '<i class="fas fa-spinner fa-spin me-2"></i>Criando nova dica...';
+    }
+
+    try {
+      const url = `./php/gemini.php?action=daily_tip${force ? "&force=1" : ""}`;
+      const response = await fetch(url, { cache: "no-store" });
+      const data = await response.json();
+
+      if (data && data.title && data.summary) {
+        // Preenche o Modal
+        if (modalAiTitle) modalAiTitle.textContent = data.title;
+        if (modalAiSummary) modalAiSummary.textContent = data.summary;
+        if (modalAiCategory)
+          modalAiCategory.textContent = data.category || "Inovação SENAI";
+
+        // Abre o modal de visualização Bootstrap
+        const modalElement = document.getElementById("aiTipModal");
+        if (modalElement && window.bootstrap) {
+          const aiModal = bootstrap.Modal.getOrCreateInstance(modalElement);
+          aiModal.show();
+        }
+
+        this.showFeedback(
+          "✨ Nova Dica da Indústria gerada com sucesso pela IA!",
+          "success",
+        );
+
+        // Atualiza a listagem e os slides do preview com a nova pílula de IA
+        await this.updateUploadedList();
+      } else {
+        throw new Error("Resposta inválida da IA.");
+      }
+    } catch (error) {
+      console.error("Erro ao gerar dica com IA:", error);
+      this.showFeedback(
+        "Não foi possível conectar com a IA no momento. Tente novamente.",
+        "danger",
+      );
+    } finally {
+      // Restaura o estado normal dos botões
+      if (btnAiTip) {
+        btnAiTip.disabled = false;
+        btnAiTip.innerHTML = originalTextBtn;
+      }
+      if (modalBtnRegenerate) {
+        modalBtnRegenerate.disabled = false;
+        modalBtnRegenerate.innerHTML = originalTextModal;
+      }
+    }
+  }
+
+  /**
+   * Consulta o back-end para carregar as mídias e mescla com Drops e IA
    */
   async updateUploadedList() {
     try {
-      // 1. Puxa mídias locais
       const response = await fetch("./php/list_uploads.php", {
         cache: "no-store",
       });
-
       const responseText = await response.text();
 
-      // Diagnóstico: caso a resposta não seja JSON válido
       try {
         this.uploadedItems = JSON.parse(responseText);
       } catch (parseErr) {
-        console.error(
-          "Resposta bruta recebida do list_uploads.php (Erro PHP):",
-          responseText,
-        );
-        throw new Error(
-          "O servidor retornou uma resposta inválida (não-JSON). Verifique o console.",
-        );
+        console.error("Erro de parse na listagem de uploads:", responseText);
+        throw new Error("O servidor retornou uma resposta não-JSON.");
       }
 
       if (!Array.isArray(this.uploadedItems)) {
@@ -104,24 +195,20 @@ class MediaManager {
       this.renderUploadedItems();
       this.updateStats();
 
-      // 2. Carrega as notícias em tempo real (DropsEngine)
+      // Carrega notícias e Pílula da IA via DropsEngine
       let activeNewsDrops = [];
       if (window.DropsEngineInstance) {
         try {
           activeNewsDrops =
             await window.DropsEngineInstance.fetchAndProcessDrops();
         } catch (err) {
-          console.warn(
-            "DropsEngine indisponível para o admin no momento:",
-            err.message,
-          );
+          console.warn("DropsEngine indisponível:", err.message);
         }
       }
 
-      // 3. Renderiza a grade de Drops ativos
       this.renderActiveDropsGrid(activeNewsDrops);
 
-      // 4. Constrói a fila mesclada de exibição (2 mídias locais + 1 Drop)
+      // Constrói fila mesclada de exibição (2 mídias locais + 1 Drop/IA)
       const combinedQueue = [];
       let localIdx = 0;
       let newsIdx = 0;
@@ -156,15 +243,12 @@ class MediaManager {
     } catch (error) {
       console.error("Erro no carregamento de uploads:", error);
       this.showFeedback(
-        "Não foi possível carregar a listagem de arquivos. Veja o console para detalhes.",
+        "Não foi possível carregar a lista de arquivos.",
         "danger",
       );
     }
   }
 
-  /**
-   * Renderiza a listagem de notícias reais monitoradas (Drops)
-   */
   renderActiveDropsGrid(newsDrops) {
     let dropsCard = document.getElementById("admin-drops-card");
     if (!dropsCard) {
@@ -186,11 +270,11 @@ class MediaManager {
     if (!newsDrops || newsDrops.length === 0) {
       dropsCard.innerHTML = `
         <div class="card-header bg-white py-3 border-0">
-          <h5 class="mb-0 fw-semibold text-secondary"><i class="fas fa-bolt me-2 text-warning"></i>Notícias em Tempo Real Ativas</h5>
+          <h5 class="mb-0 fw-semibold text-secondary"><i class="fas fa-bolt me-2 text-warning"></i>Notícias em Tempo Real & IA</h5>
         </div>
         <div class="card-body p-4 text-center text-muted">
           <i class="fas fa-unlink fa-2x mb-2 text-warning"></i>
-          <p class="mb-0 small">Aguardando conexão com os feeds de notícias...</p>
+          <p class="mb-0 small">Aguardando conexão com os feeds e IA...</p>
         </div>
       `;
       return;
@@ -199,33 +283,33 @@ class MediaManager {
     let html = `
       <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
         <h5 class="mb-0 fw-semibold text-secondary">
-          <i class="fas fa-bolt me-2 text-warning animate-pulse"></i>Fila de Drops da Indústria (Tempo Real)
+          <i class="fas fa-bolt me-2 text-warning animate-pulse"></i>Fila de Drops da Indústria & IA
         </h5>
         <span class="badge bg-primary rounded-pill">${newsDrops.length} Slides</span>
       </div>
       <div class="card-body p-4">
-        <p class="text-muted small mb-4">Abaixo estão listadas as notícias capturadas automaticamente em tempo real.</p>
         <div class="row g-3">
     `;
 
     newsDrops.forEach((item) => {
       const isVideo = item.hasVideo && item.video;
+      const isAi = !!item.isAi;
       const mediaHtml = isVideo
         ? `<video class="img-fluid rounded" style="height: 100px; width: 100%; object-fit: cover;" muted preload="metadata"><source src="${item.video}#t=0.5" type="video/mp4"></video>`
         : item.image
           ? `<img src="${item.image}" alt="Notícia" class="img-fluid rounded" style="height: 100px; width: 100%; object-fit: cover;">`
-          : `<div class="d-flex align-items-center justify-content-center bg-light rounded" style="height: 100px; width: 100%;"><i class="fas fa-newspaper fa-2x text-muted"></i></div>`;
+          : `<div class="d-flex align-items-center justify-content-center ${isAi ? "bg-dark text-warning" : "bg-light text-muted"} rounded" style="height: 100px; width: 100%;"><i class="fas ${isAi ? "fa-wand-magic-sparkles" : "fa-newspaper"} fa-2x"></i></div>`;
 
       html += `
         <div class="col-12 col-xl-6">
-          <div class="p-3 border rounded bg-light d-flex gap-3 h-100">
+          <div class="p-3 border rounded ${isAi ? "border-primary bg-primary bg-opacity-10" : "bg-light"} d-flex gap-3 h-100">
             <div style="width: 120px; flex-shrink: 0;" class="position-relative">
               ${mediaHtml}
-              ${isVideo ? '<span class="badge bg-dark position-absolute bottom-0 start-0 m-1" style="font-size:0.6rem;"><i class="fas fa-video"></i> Vídeo</span>' : ""}
+              ${isAi ? '<span class="badge bg-primary position-absolute bottom-0 start-0 m-1" style="font-size:0.6rem;"><i class="fas fa-robot"></i> IA</span>' : ""}
             </div>
             <div class="flex-grow-1" style="min-width: 0;">
               <div class="d-flex justify-content-between align-items-center mb-1">
-                <span class="badge bg-secondary" style="font-size: 0.7rem;">${item.category || "Geral"}</span>
+                <span class="badge ${isAi ? "bg-primary" : "bg-secondary"}" style="font-size: 0.7rem;">${item.category || "Geral"}</span>
                 <span class="text-muted" style="font-size: 0.7rem;">${item.pubDate || ""}</span>
               </div>
               <h6 class="text-dark fw-bold text-truncate mb-1" style="font-size: 0.85rem;" title="${item.title || ""}">${item.title || ""}</h6>
@@ -371,7 +455,6 @@ class MediaManager {
       try {
         data = JSON.parse(responseText);
       } catch (e) {
-        console.error("Resposta de upload do servidor:", responseText);
         throw new Error("Resposta inválida do servidor.");
       }
 
@@ -438,7 +521,6 @@ class MediaManager {
         );
       }
     } catch (error) {
-      console.error("Erro ao configurar tempo:", error);
       this.showFeedback("Erro interno ao salvar temporização.", "danger");
     }
   }
@@ -467,7 +549,6 @@ class MediaManager {
         );
       }
     } catch (error) {
-      console.error("Erro de exclusão:", error);
       this.showFeedback("Erro interno ao solicitar exclusão.", "danger");
     }
   }
@@ -499,12 +580,11 @@ class MediaManager {
 
   processFiles(files) {
     if (files.length === 0) return;
-
     const { validFiles, invalidFiles } = this.validateFiles(files);
 
     if (invalidFiles.length > 0) {
       this.showFeedback(
-        `Omissões de arquivos incompatíveis: ${invalidFiles.join(", ")}.`,
+        `Arquivos incompatíveis: ${invalidFiles.join(", ")}.`,
         "warning",
       );
     }
@@ -524,9 +604,7 @@ class MediaManager {
         invalidFiles.push(`${file.name} (Formato inválido)`);
         return;
       }
-
       cumulativeSize += file.size;
-
       if (!this.isFileAlreadySelected(file)) {
         validFiles.push(file);
       }
@@ -536,7 +614,7 @@ class MediaManager {
       return {
         validFiles: [],
         invalidFiles: [
-          `Lote excede teto de 500MB (${this.formatFileSize(cumulativeSize)})`,
+          `Lote excede o teto de 500MB (${this.formatFileSize(cumulativeSize)})`,
         ],
       };
     }
