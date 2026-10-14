@@ -1,15 +1,15 @@
 <?php
 /**
  * ============================================================================
- * Serviço de Integração com Google Gemini (AI Studio)
+ * Serviço Avançado de Integração Google Gemini (AI Studio)
  * Totem SENAI Uberaba & FIEMG Regional Vale do Rio Grande
  * 
  * Funcionalidades:
- * 1. Geração de Pílulas de Conhecimento e Dicas Rápidas para a TV.
- * 2. Saída JSON estruturada (application/json) nativa.
- * 3. Enquadramento restrito nas 4 categorias oficiais:
- *    - SENAI UBERABA | SENAI MG | FIEMG | SENAI NACIONAL
- * 4. Cache local de 12 horas em disco com bypass forçado (&force=1).
+ * 1. Pílulas Dinâmicas Multi-Drop (action=batch_drops) para alimentar a TV.
+ * 2. Pílula Individual com Schema Nativo (action=daily_tip).
+ * 3. Desafio Técnico / Quiz Industrial (action=daily_quiz).
+ * 4. Memória Anti-Repetição em Disco.
+ * 5. Bypass forçado de atualização (&force=1).
  * ============================================================================
  */
 
@@ -18,41 +18,42 @@ header('Access-Control-Allow-Origin: *');
 header('Cache-Control: no-cache, no-store, must-revalidate');
 
 // ============================================================================
-// 1. CREDENCIAIS E CONFIGURAÇÃO DO MODELO
+// 1. CREDENCIAIS E CONFIGURAÇÃO
 // ============================================================================
-// Cole sua chave obtida no Google AI Studio (aistudio.google.com)
-define('GEMINI_API_KEY', 'SUA_CHAVE_DO_GOOGLE_AI_STUDIO_AQUI');
-
-// Modelo recomendado para resposta rápida e gratuita
+define('GEMINI_API_KEY', '');
 define('GEMINI_MODEL', 'gemini-1.5-flash');
 
 /**
- * Função executora da chamada cURL para a API do Google Gemini
+ * Chamada cURL única e estruturada ao Google Gemini
  */
-function callGemini($prompt)
+function callGeminiStructured($prompt, array $schema, $systemInstruction = '')
 {
-    // Validação preventiva de chave não configurada
-    if (GEMINI_API_KEY === 'SUA_CHAVE_DO_GOOGLE_AI_STUDIO_AQUI' || empty(GEMINI_API_KEY)) {
+    if (empty(GEMINI_API_KEY) || strpos(GEMINI_API_KEY, 'SUA_CHAVE') !== false) {
         return null;
     }
 
     $url = "https://generativelanguage.googleapis.com/v1beta/models/" . GEMINI_MODEL . ":generateContent?key=" . GEMINI_API_KEY;
 
-    // Configuração do payload com garantia de retorno JSON puro (responseMimeType)
     $payload = [
         "contents" => [
             [
-                "parts" => [
-                    ["text" => $prompt]
-                ]
+                "role" => "user",
+                "parts" => [["text" => $prompt]]
             ]
         ],
         "generationConfig" => [
             "temperature" => 0.7,
-            "maxOutputTokens" => 250,
-            "responseMimeType" => "application/json"
+            "maxOutputTokens" => 800,
+            "responseMimeType" => "application/json",
+            "responseSchema" => $schema
         ]
     ];
+
+    if (!empty($systemInstruction)) {
+        $payload["systemInstruction"] = [
+            "parts" => [["text" => $systemInstruction]]
+        ];
+    }
 
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
@@ -63,15 +64,13 @@ function callGemini($prompt)
         'Content-Type: application/json',
         'Accept: application/json'
     ]);
-    curl_setopt($ch, CURLOPT_ENCODING, '');
-    curl_setopt($ch, CURLOPT_TIMEOUT, 7);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 8);
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
-    // Compatibilidade com PHP 8.0 até PHP 8.5+
     if (is_resource($ch) || (is_object($ch) && PHP_VERSION_ID < 80500)) {
         curl_close($ch);
     }
@@ -81,20 +80,57 @@ function callGemini($prompt)
     }
 
     $json = json_decode($response, true);
-    return $json['candidates'][0]['content']['parts'][0]['text'] ?? null;
+    $text = $json['candidates'][0]['content']['parts'][0]['text'] ?? null;
+    return $text ? json_decode($text, true) : null;
 }
 
-$action = $_GET['action'] ?? '';
+/**
+ * Funções de histórico para evitar repetição de temas
+ */
+function getRecentTopicsHistory($historyFile)
+{
+    if (file_exists($historyFile)) {
+        $data = json_decode(file_get_contents($historyFile), true);
+        if (is_array($data)) {
+            return array_slice($data, -8);
+        }
+    }
+    return [];
+}
+
+function appendTopicToHistory($historyFile, $topic)
+{
+    $history = getRecentTopicsHistory($historyFile);
+    $history[] = $topic;
+    $history = array_slice($history, -8);
+    file_put_contents($historyFile, json_encode($history, JSON_UNESCAPED_UNICODE));
+}
+
+// Roteamento de parâmetros
+$action = $_GET['action'] ?? 'batch_drops';
 $force = isset($_GET['force']) && $_GET['force'] == '1';
 
-// ============================================================================
-// 2. AÇÃO: GERAR DICA DO DIA / PÍLULA INDUSTRIAL
-// ============================================================================
-if ($action === 'daily_tip') {
-    $cacheFile = __DIR__ . '/cache_daily_tip.json';
-    $cacheTime = 43200; // 12 horas de cache em disco
+// Contexto temporal de turno
+$horaAtual = (int) date('H');
+if ($horaAtual < 12) {
+    $turno = "Manhã (aprendizado prático e segurança em oficinas)";
+} elseif ($horaAtual < 18) {
+    $turno = "Tarde (projetos integradores, automação e laboratórios)";
+} else {
+    $turno = "Noite (carreira industrial, especialização e competitividade)";
+}
 
-    // Se NÃO for solicitação forçada pelo botão do admin e o cache existir, entrega o cache
+$systemBase = "Você é o redator do sistema de sinalização digital da TV do SENAI Uberaba e FIEMG Regional Vale do Rio Grande. "
+    . "Seu público são estudantes técnicos de mecatrônica, automação e mecânica, além de docentes e industriais. "
+    . "Crie conteúdos com linguagem técnica, moderna e instigante. Evite clichês burocráticos.";
+
+// ============================================================================
+// 1. AÇÃO: LOTE DINÂMICO MULTI-DROP (action=batch_drops)
+// ============================================================================
+if ($action === 'batch_drops') {
+    $cacheFile = __DIR__ . '/cache_batch_drops.json';
+    $cacheTime = 7200; // 2 horas
+
     if (!$force && file_exists($cacheFile) && (time() - filemtime($cacheFile) < $cacheTime)) {
         $cached = file_get_contents($cacheFile);
         if (!empty($cached) && $cached !== '[]') {
@@ -103,94 +139,233 @@ if ($action === 'daily_tip') {
         }
     }
 
-    // Temas técnicos alinhados ao ecossistema do SENAI e Indústria
-    $topics = [
-        "Automação e Robótica Industrial",
-        "Segurança do Trabalho e NR-12",
-        "Manutenção Preditiva e Sensores IoT",
-        "Eficiência Energética nas Linhas de Produção",
-        "Gêmeos Digitais e Indústria 4.0",
-        "Soldagem Avançada e Inspeção Visual",
-        "Mecatrônica e Manufatura Aditiva 3D",
-        "Inteligência Artificial Aplicada ao Chão de Fábrica"
+    $schema = [
+        "type" => "ARRAY",
+        "items" => [
+            "type" => "OBJECT",
+            "properties" => [
+                "tag_type" => [
+                    "type" => "STRING",
+                    "description" => "Ex: DESAFIO TÉCNICO, PROFISSÃO DO FUTURO, INDÚSTRIA 4.0 ou DICA DE OFICINA"
+                ],
+                "icon" => [
+                    "type" => "STRING",
+                    "description" => "Um emoji representativo (ex: 🧠, 🚀, 🔮, 💡)"
+                ],
+                "title" => [
+                    "type" => "STRING",
+                    "description" => "Título magnético e direto de até 6 palavras"
+                ],
+                "summary" => [
+                    "type" => "STRING",
+                    "description" => "Resumo prático ou resposta técnica de até 28 palavras"
+                ],
+                "category" => [
+                    "type" => "STRING",
+                    "enum" => ["SENAI UBERABA", "SENAI MG", "FIEMG", "SENAI NACIONAL"]
+                ]
+            ],
+            "required" => ["tag_type", "icon", "title", "summary", "category"]
+        ]
     ];
-    $randomTopic = $topics[array_rand($topics)];
 
-    // Sorteia uma das 4 categorias oficiais para equilibrar a esteira da TV
-    $allowedCategories = ["SENAI UBERABA", "SENAI MG", "FIEMG", "SENAI NACIONAL"];
-    $targetCategory = $allowedCategories[array_rand($allowedCategories)];
+    $prompt = "Gere exatamente 4 cards curtos e diversificados para a TV no turno da {$turno}: "
+        . "1. Um DESAFIO TÉCNICO (pergunta rápida com a resposta explicada no resumo); "
+        . "2. Uma TENDÊNCIA DE INDÚSTRIA 4.0 aplicada ao chão de fábrica; "
+        . "3. Uma PROFISSÃO TÉCNICA EM ALTA na região de Minas Gerais e Triângulo Mineiro; "
+        . "4. Uma DICA DE OFICINA sobre segurança NR-12 ou manutenção preditiva IoT. "
+        . "Distribua as categorias entre SENAI UBERABA, SENAI MG, FIEMG e SENAI NACIONAL.";
 
-    // Prompt estrito com esquema JSON explícito
-    $prompt = "Você é o sistema inteligente de comunicação interna do SENAI Uberaba (Minas Gerais). "
-        . "Gere uma pílula informativa curta e chamativa sobre o tema: '{$randomTopic}'. "
-        . "Esta dica será exibida por 10 segundos na TV do saguão para alunos, professores e empresários. "
-        . "Retorne estritamente um JSON no seguinte formato: "
-        . "{"
-        . "\"title\": \"Título curto e impactante (máximo 5 palavras)\", "
-        . "\"summary\": \"Explicação prática em 1 ou 2 frases curtas (máximo 25 palavras).\", "
-        . "\"category\": \"{$targetCategory}\""
-        . "}";
+    $result = callGeminiStructured($prompt, $schema, $systemBase);
 
-    $result = callGemini($prompt);
-
-    if ($result) {
-        // Remove eventuais quebras ou marcações markdown residuais
-        $cleaned = preg_replace('/```(?:json)?/i', '', $result);
-        $cleaned = trim($cleaned);
-
-        $parsed = json_decode($cleaned, true);
-        if ($parsed && isset($parsed['title']) && isset($parsed['summary'])) {
-            // Garante que a categoria seja estritamente uma das 4 oficiais
-            if (!in_array($parsed['category'] ?? '', $allowedCategories, true)) {
-                $parsed['category'] = $targetCategory;
-            }
-
-            $finalJson = json_encode($parsed, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            file_put_contents($cacheFile, $finalJson);
-            echo $finalJson;
-            exit;
-        }
+    if (is_array($result) && count($result) >= 3) {
+        $out = json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        file_put_contents($cacheFile, $out);
+        echo $out;
+        exit;
     }
 
-    // ========================================================================
-    // 3. BASE DE CONTINGÊNCIA (OFFLINE OU SE A CHAVE DO GEMINI ESTIVER VAZIA)
-    // ========================================================================
+    // Fallback rico para lote
     $fallbacks = [
         [
-            "title" => "Manutenção Preditiva com Sensores IoT",
-            "summary" => "Monitorar temperatura e vibração em tempo real evita paradas não planejadas e aumenta a vida útil dos equipamentos.",
+            "tag_type" => "DESAFIO TÉCNICO",
+            "icon" => "🧠",
+            "title" => "Qual Dispositivo Protege Contra Sobrecargas?",
+            "summary" => "O Relé Térmico. Pelo aquecimento bimetálico, ele desarma o contator antes da queima dos enrolamentos do motor.",
             "category" => "SENAI UBERABA"
         ],
         [
-            "title" => "Segurança Fabril e Normas NR-12",
-            "summary" => "A proteção física de máquinas e a capacitação contínua são os pilares essenciais para o índice zero de acidentes.",
+            "tag_type" => "INDÚSTRIA 4.0",
+            "icon" => "🔮",
+            "title" => "Gêmeos Digitais Reduzem Perdas Fabris",
+            "summary" => "Simular esteiras e robôs no computador antes da instalação física reduz paradas de produção em até 30%.",
             "category" => "SENAI MG"
         ],
         [
-            "title" => "Eficiência e Gestão Energética",
-            "summary" => "Controlar horários de pico e otimizar compressores industriais gera economia de até 20% no consumo das fábricas.",
+            "tag_type" => "PROFISSÃO DO FUTURO",
+            "icon" => "🚀",
+            "title" => "Técnico em Mecatrônica em Alta na Região",
+            "summary" => "A modernização industrial no polo de Uberaba impulsiona a procura por especialistas em integração de sistemas automatizados.",
             "category" => "FIEMG"
         ],
         [
-            "title" => "Gêmeos Digitais na Manufatura 4.0",
-            "summary" => "Testar simulações 3D da produção antes da montagem real reduz desperdícios e acelera novos lançamentos industriais.",
+            "tag_type" => "DICA DE OFICINA",
+            "icon" => "💡",
+            "title" => "Manutenção Preditiva com Sensores IoT",
+            "summary" => "Medir vibração e temperatura em tempo real detecta folgas em rolamentos semanas antes de uma quebra mecânica.",
             "category" => "SENAI NACIONAL"
         ]
     ];
 
-    $chosenFallback = $fallbacks[array_rand($fallbacks)];
-    $fallbackJson = json_encode($chosenFallback, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-
-    // Salva em cache para não reprocessar repetidamente em falha
-    file_put_contents($cacheFile, $fallbackJson);
-
-    echo $fallbackJson;
+    $out = json_encode($fallbacks, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    file_put_contents($cacheFile, $out);
+    echo $out;
     exit;
 }
 
-// Resposta padrão de verificação de status
+// ============================================================================
+// 2. AÇÃO: PÍLULA INDIVIDUAL RETROCOMPATÍVEL (action=daily_tip)
+// ============================================================================
+if ($action === 'daily_tip') {
+    $cacheFile = __DIR__ . '/cache_daily_tip.json';
+    $historyFile = __DIR__ . '/history_daily_tip.json';
+    $cacheTime = 21600; // 6 horas
+
+    if (!$force && file_exists($cacheFile) && (time() - filemtime($cacheFile) < $cacheTime)) {
+        $cached = file_get_contents($cacheFile);
+        if (!empty($cached) && $cached !== '[]') {
+            echo $cached;
+            exit;
+        }
+    }
+
+    $topicsPool = [
+        "Robótica Industrial Colaborativa",
+        "Segurança Operacional e NR-12",
+        "Manutenção Preditiva e Sensores IoT",
+        "Eficiência Energética em Motores",
+        "Gêmeos Digitais e Indústria 4.0",
+        "Soldagem Automatizada e Ultrassom",
+        "Programação de CLPs Industriais",
+        "Inteligência Artificial na Produção"
+    ];
+
+    $recent = getRecentTopicsHistory($historyFile);
+    $availableTopics = array_values(array_diff($topicsPool, $recent));
+    if (empty($availableTopics)) {
+        $availableTopics = $topicsPool;
+    }
+    $chosenTopic = $availableTopics[array_rand($availableTopics)];
+
+    $categories = ["SENAI UBERABA", "SENAI MG", "FIEMG", "SENAI NACIONAL"];
+    $chosenCategory = $categories[array_rand($categories)];
+
+    $schema = [
+        "type" => "OBJECT",
+        "properties" => [
+            "title" => [
+                "type" => "STRING",
+                "description" => "Título direto com até 5 palavras"
+            ],
+            "summary" => [
+                "type" => "STRING",
+                "description" => "Explicação técnica objetiva com até 25 palavras"
+            ],
+            "category" => [
+                "type" => "STRING",
+                "enum" => $categories
+            ]
+        ],
+        "required" => ["title", "summary", "category"]
+    ];
+
+    $prompt = "Gere uma pílula técnica chamativa sobre '{$chosenTopic}' no turno da {$turno}. Categoria: '{$chosenCategory}'.";
+    $result = callGeminiStructured($prompt, $schema, $systemBase);
+
+    if ($result && !empty($result['title']) && !empty($result['summary'])) {
+        appendTopicToHistory($historyFile, $chosenTopic);
+        $finalJson = json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        file_put_contents($cacheFile, $finalJson);
+        echo $finalJson;
+        exit;
+    }
+
+    $fallbackSingle = [
+        "title" => "Manutenção Preditiva e Sensores IoT",
+        "summary" => "Monitorar vibrações em tempo real evita paradas não planejadas e eleva a vida útil dos equipamentos industriais.",
+        "category" => "SENAI UBERABA"
+    ];
+    $out = json_encode($fallbackSingle, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    file_put_contents($cacheFile, $out);
+    echo $out;
+    exit;
+}
+
+// ============================================================================
+// 3. AÇÃO: QUIZ / DESAFIO TÉCNICO INTERATIVO (action=daily_quiz)
+// ============================================================================
+if ($action === 'daily_quiz') {
+    $cacheFile = __DIR__ . '/cache_daily_quiz.json';
+    $cacheTime = 21600; // 6 horas
+
+    if (!$force && file_exists($cacheFile) && (time() - filemtime($cacheFile) < $cacheTime)) {
+        $cached = file_get_contents($cacheFile);
+        if (!empty($cached) && $cached !== '[]') {
+            echo $cached;
+            exit;
+        }
+    }
+
+    $schema = [
+        "type" => "OBJECT",
+        "properties" => [
+            "question" => ["type" => "STRING", "description" => "Pergunta técnica de múltipla escolha com até 15 palavras"],
+            "options" => [
+                "type" => "ARRAY",
+                "items" => ["type" => "STRING"],
+                "description" => "3 opções curtas (A, B, C)"
+            ],
+            "correct_option" => ["type" => "STRING", "description" => "Opção correta exatamente como listada nas opções"],
+            "explanation" => ["type" => "STRING", "description" => "Explicação técnica com até 20 palavras"],
+            "category" => [
+                "type" => "STRING",
+                "enum" => ["SENAI UBERABA", "SENAI MG"]
+            ]
+        ],
+        "required" => ["question", "options", "correct_option", "explanation", "category"]
+    ];
+
+    $prompt = "Crie uma pergunta de múltipla escolha técnica de chão de fábrica sobre comandos elétricos, CLP ou pneumática para o turno da {$turno}.";
+    $result = callGeminiStructured($prompt, $schema, $systemBase);
+
+    if ($result && !empty($result['question']) && count($result['options'] ?? []) === 3) {
+        $finalJson = json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        file_put_contents($cacheFile, $finalJson);
+        echo $finalJson;
+        exit;
+    }
+
+    $quizFallback = [
+        "question" => "Qual componente desarma o circuito contra sobrecargas contínuas em motores elétricos?",
+        "options" => ["Relé Térmico", "Fusível Ultra-Rápido", "Botão Pulsador NA"],
+        "correct_option" => "Relé Térmico",
+        "explanation" => "O relé térmico atua pelo aquecimento bimetálico, desarmando o contator antes da queima do enrolamento.",
+        "category" => "SENAI UBERABA"
+    ];
+    $out = json_encode($quizFallback, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    file_put_contents($cacheFile, $out);
+    echo $out;
+    exit;
+}
+
+// Status padrão
 echo json_encode([
-    'status' => 'API Gemini SENAI pronta',
+    'status' => 'API Gemini SENAI pronta e operando',
     'model' => GEMINI_MODEL,
-    'categories' => ['SENAI UBERABA', 'SENAI MG', 'FIEMG', 'SENAI NACIONAL']
-], JSON_UNESCAPED_UNICODE);
+    'endpoints' => [
+        'batch_drops' => 'gemini.php?action=batch_drops',
+        'daily_tip' => 'gemini.php?action=daily_tip',
+        'daily_quiz' => 'gemini.php?action=daily_quiz',
+        'force' => 'gemini.php?action=batch_drops&force=1'
+    ]
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
